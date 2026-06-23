@@ -1,0 +1,7 @@
+Target dependency graph (3 targets)
+Target 'AllExcludingTests' in project 'Aggregate'
+➜ Explicit dependency on target 'StatelessUI-product' in project 'StatelessUI'
+➜ Explicit dependency on target 'StatelessUI' in project 'StatelessUI'
+Target 'StatelessUI-product' in project 'StatelessUI'
+➜ Explicit dependency on target 'StatelessUI' in project 'StatelessUI'
+Target 'StatelessUI' in project 'StatelessUI' (no dependencies)

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>fiskal-pure — TS Demo</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 640px;
+        margin: 3rem auto;
+        padding: 0 1rem;
+        background: #fafafa;
+        color: #111;
+      }
+      h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; }
+      ul { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+      li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      button {
+        background: none;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        padding: 0.25rem 0.6rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: #6b7280;
+      }
+      button:hover { background: #f3f4f6; }
+      form { display: flex; gap: 0.5rem; }
+      input {
+        flex: 1;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.95rem;
+      }
+      form button {
+        background: #111;
+        color: #fff;
+        border-color: #111;
+      }
+      form button:hover { background: #333; }
+      .empty { color: #9ca3af; font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,119 @@
+{
+  "" : {
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/StatelessUI-primary.dia",
+    "emit-module-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/StatelessUI-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/StatelessUI-primary-emit-module.dia",
+    "pch" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/StatelessUI-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/StatelessUI-primary.swiftdeps"
+  },
+  "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/Sources/StatelessUI/Adapters/CloudKitAdapter.swift" : {
+    "const-values" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/CloudKitAdapter.swiftconstvalues",
+    "dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/CloudKitAdapter.d",
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/CloudKitAdapter.dia",
+    "index-unit-output-path" : "/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/CloudKitAdapter.o",
+    "llvm-bc" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/CloudKitAdapter.bc",
+    "object" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/CloudKitAdapter.o",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/CloudKitAdapter.swiftdeps",
+    "swiftmodule" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/CloudKitAdapter~partial.swiftmodule"
+  },
+  "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/Sources/StatelessUI/Adapters/MemoryAdapter.swift" : {
+    "const-values" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/MemoryAdapter.swiftconstvalues",
+    "dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/MemoryAdapter.d",
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/MemoryAdapter.dia",
+    "index-unit-output-path" : "/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/MemoryAdapter.o",
+    "llvm-bc" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/MemoryAdapter.bc",
+    "object" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/MemoryAdapter.o",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/MemoryAdapter.swiftdeps",
+    "swiftmodule" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/MemoryAdapter~partial.swiftmodule"
+  },
+  "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/Sources/StatelessUI/Adapters/NSUserDefaultsAdapter.swift" : {
+    "const-values" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/NSUserDefaultsAdapter.swiftconstvalues",
+    "dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/NSUserDefaultsAdapter.d",
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/NSUserDefaultsAdapter.dia",
+    "index-unit-output-path" : "/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/NSUserDefaultsAdapter.o",
+    "llvm-bc" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/NSUserDefaultsAdapter.bc",
+    "object" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/NSUserDefaultsAdapter.o",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/NSUserDefaultsAdapter.swiftdeps",
+    "swiftmodule" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/NSUserDefaultsAdapter~partial.swiftmodule"
+  },
+  "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/Sources/StatelessUI/Core/Cache.swift" : {
+    "const-values" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Cache.swiftconstvalues",
+    "dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Cache.d",
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Cache.dia",
+    "index-unit-output-path" : "/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Cache.o",
+    "llvm-bc" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Cache.bc",
+    "object" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Cache.o",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Cache.swiftdeps",
+    "swiftmodule" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Cache~partial.swiftmodule"
+  },
+  "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/Sources/StatelessUI/Core/History.swift" : {
+    "const-values" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/History.swiftconstvalues",
+    "dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/History.d",
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/History.dia",
+    "index-unit-output-path" : "/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/History.o",
+    "llvm-bc" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/History.bc",
+    "object" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/History.o",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/History.swiftdeps",
+    "swiftmodule" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/History~partial.swiftmodule"
+  },
+  "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/Sources/StatelessUI/Core/Mutate.swift" : {
+    "const-values" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Mutate.swiftconstvalues",
+    "dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Mutate.d",
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Mutate.dia",
+    "index-unit-output-path" : "/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Mutate.o",
+    "llvm-bc" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Mutate.bc",
+    "object" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Mutate.o",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Mutate.swiftdeps",
+    "swiftmodule" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Mutate~partial.swiftmodule"
+  },
+  "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/Sources/StatelessUI/Core/Store+Internal.swift" : {
+    "const-values" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store+Internal.swiftconstvalues",
+    "dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store+Internal.d",
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store+Internal.dia",
+    "index-unit-output-path" : "/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store+Internal.o",
+    "llvm-bc" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store+Internal.bc",
+    "object" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store+Internal.o",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store+Internal.swiftdeps",
+    "swiftmodule" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store+Internal~partial.swiftmodule"
+  },
+  "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/Sources/StatelessUI/Core/Store.swift" : {
+    "const-values" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store.swiftconstvalues",
+    "dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store.d",
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store.dia",
+    "index-unit-output-path" : "/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store.o",
+    "llvm-bc" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store.bc",
+    "object" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store.o",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store.swiftdeps",
+    "swiftmodule" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Store~partial.swiftmodule"
+  },
+  "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/Sources/StatelessUI/Core/Types.swift" : {
+    "const-values" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Types.swiftconstvalues",
+    "dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Types.d",
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Types.dia",
+    "index-unit-output-path" : "/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Types.o",
+    "llvm-bc" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Types.bc",
+    "object" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Types.o",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Types.swiftdeps",
+    "swiftmodule" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Types~partial.swiftmodule"
+  },
+  "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/Sources/StatelessUI/SwiftUI/Query.swift" : {
+    "const-values" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Query.swiftconstvalues",
+    "dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Query.d",
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Query.dia",
+    "index-unit-output-path" : "/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Query.o",
+    "llvm-bc" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Query.bc",
+    "object" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Query.o",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Query.swiftdeps",
+    "swiftmodule" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/Query~partial.swiftmodule"
+  },
+  "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/Sources/StatelessUI/SwiftUI/WireView.swift" : {
+    "const-values" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/WireView.swiftconstvalues",
+    "dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/WireView.d",
+    "diagnostics" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/WireView.dia",
+    "index-unit-output-path" : "/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/WireView.o",
+    "llvm-bc" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/WireView.bc",
+    "object" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/WireView.o",
+    "swift-dependencies" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/WireView.swiftdeps",
+    "swiftmodule" : "/Users/fiskal/Documents/code.nosync/fiskal-pure/packages/swift/.build/out/Intermediates.noindex/StatelessUI.build/Debug/StatelessUI-t.build/Objects-normal/arm64/WireView~partial.swiftmodule"
+  }
+}

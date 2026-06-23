@@ -1,0 +1,3 @@
+[submodule ".claude"]
+	path = .claude
+	url = git@github.com:fiskal/buddha-team.git
