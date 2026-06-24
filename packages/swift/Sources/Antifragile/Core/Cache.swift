@@ -1,4 +1,4 @@
-// StatelessUI — Cache
+// Antifragile — Cache
 // Observable in-memory entity tree. MainActor-bound for SwiftUI compat.
 // Structural sharing: only the changed doc node is replaced.
 

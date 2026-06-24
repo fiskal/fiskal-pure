@@ -1,4 +1,4 @@
-// StatelessUI — Core Types
+// Antifragile — Core Types
 // All shared value types. No business logic here.
 
 import Foundation

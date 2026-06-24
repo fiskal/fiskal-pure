@@ -1,4 +1,4 @@
-// StatelessUI — @Query property wrapper
+// Antifragile — @Query property wrapper
 // Wires a pure SwiftUI component to a live cache subscription.
 // Usage:
 //

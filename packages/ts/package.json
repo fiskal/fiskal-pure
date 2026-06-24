@@ -1,7 +1,7 @@
 {
-  "name": "@fiskal/pure-ts",
+  "name": "@fiskal/antifragile",
   "version": "0.1.0",
-  "description": "fiskal-pure TypeScript package — stateless-UI data layer",
+  "description": "fiskal-antifragile TypeScript package — view/data separation for React",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

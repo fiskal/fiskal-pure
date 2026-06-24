@@ -1,4 +1,4 @@
-// StatelessUI — wireView
+// Antifragile — wireView
 // Wires a pure SwiftUI component to live store queries + bound action closures.
 //
 // Usage:
@@ -162,6 +162,6 @@ extension Store {
             }
         }
         // If no registered mutate found, no-op (or throw for strict mode).
-        // Strict would be: throw StatelessUIError.unknownAction(action)
+        // Strict would be: throw AntifragileError.unknownAction(action)
     }
 }

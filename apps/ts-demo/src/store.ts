@@ -1,57 +1,79 @@
-// ---------------------------------------------------------------------------
-// Demo store — task management with MemoryAdapter
-// ---------------------------------------------------------------------------
-//
-// TaskModel schema:  { id, title, status, createdAt }
-// status values:     'active' | 'archived'
-//
-// This file is the only place the store is wired. Components import nothing
-// from @fiskal/pure-ts — they receive data and callbacks as plain props.
-
-import { createStore, createMutate, MemoryAdapter } from '@fiskal/pure-ts'
-import { MemoryAdapter as MA } from '@fiskal/pure-ts/adapters/memory'
+import { createStore, createMutate, createWireView } from '@fiskal/antifragile'
+import { MemoryAdapter } from '@fiskal/antifragile/adapters/memory'
+import type { Model } from '@fiskal/antifragile'
 
 // ---------------------------------------------------------------------------
-// Shared store instance — MemoryAdapter keeps everything in-process.
+// Model — JSON schema + compute formatters
 // ---------------------------------------------------------------------------
 
-export const store = createStore(MA())
+type TaskDoc = { createdAt: number; status: string }
 
-// ---------------------------------------------------------------------------
-// Model schema (used as documentation; MemoryAdapter accepts any Doc shape)
-// ---------------------------------------------------------------------------
+const taskCompute: Model['compute'] = {
+  // TypeScript does not allow `this` parameters on accessor getters.
+  // Use function form and cast — the library applies these via Object.defineProperties,
+  // so `this` is the doc at call time.
+  get createdAtDisplay() {
+    const self = this as unknown as TaskDoc
+    return new Date(self.createdAt).toLocaleDateString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+    })
+  },
+  get statusLabel() {
+    const self = this as unknown as TaskDoc
+    return self.status === 'active' ? 'In Progress' : 'Archived'
+  },
+}
 
-export interface TaskDoc {
-  id: string
-  title: string
-  status: 'active' | 'archived'
-  createdAt: string
+export const TaskModel: Model = {
+  schema: {
+    type: 'object',
+    properties: {
+      id:        { type: 'string' },
+      title:     { type: 'string', minLength: 1 },
+      status:    { type: 'string', enum: ['active', 'archived'] },
+      createdAt: { type: 'number' },
+    },
+    required: ['id', 'title', 'status', 'createdAt'],
+  },
+  compute: taskCompute,
 }
 
 // ---------------------------------------------------------------------------
-// Mutates
+// Store — seed data, model, mutates all in one place
 // ---------------------------------------------------------------------------
 
-/** Create a new active task. */
+export const store = createStore(
+  MemoryAdapter({
+    tasks: [
+      { id: 'task-1', title: 'Deploy to production', status: 'active', createdAt: Date.now() - 86_400_000 },
+      { id: 'task-2', title: 'Write release notes',  status: 'active', createdAt: Date.now() - 3_600_000  },
+      { id: 'task-3', title: 'Update dependencies',  status: 'active', createdAt: Date.now()              },
+    ],
+  }),
+  { models: { tasks: TaskModel } },
+)
+
 export const addTask = createMutate<{ id: string; title: string }>(store, {
-  write: ({ id, title }) => ({
+  write: ({ id, title }: { id: string; title: string }) => ({
     collection: 'tasks',
     id,
-    fields: {
-      title,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    },
-    merge: false,
+    fields: { title, status: 'active', createdAt: Date.now() },
+    merge: false as const,
   }),
 })
 
-/** Mark a task as archived. */
 export const archiveTask = createMutate<{ id: string }>(store, {
-  write: ({ id }) => ({
+  write: ({ id }: { id: string }) => ({
     collection: 'tasks',
     id,
     fields: { status: 'archived' },
-    merge: true,
+    merge: true as const,
   }),
+})
+
+// wireView bound to this store and its mutates — the only connection point
+type AnyMutate = (payload?: Record<string, unknown>) => Promise<unknown>
+export const wireView = createWireView(store, {
+  addTask:     addTask as unknown as AnyMutate,
+  archiveTask: archiveTask as unknown as AnyMutate,
 })

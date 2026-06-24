@@ -51,7 +51,7 @@ export function isAtomicOp(v: unknown): v is AtomicOp {
     v !== null &&
     '__op' in v &&
     typeof (v as Record<string, unknown>)['__op'] === 'string' &&
-    (v as Record<string, unknown>)['__op'].toString().startsWith('::')
+    String((v as Record<string, unknown>)['__op']).startsWith('::')
   )
 }
 

@@ -1,4 +1,4 @@
-// StatelessUI — Store
+// Antifragile — Store
 // The single application store. Created once; injected via SwiftUI environment.
 
 import Foundation

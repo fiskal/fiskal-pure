@@ -1,4 +1,4 @@
-// StatelessUI — Mutate
+// Antifragile — Mutate
 // Describes a named write. Three creation forms:
 //   • write-only     — createMutate(action:write:)
 //   • read-then-write — createMutate(action:read:write:)

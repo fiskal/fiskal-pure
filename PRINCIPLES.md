@@ -1,4 +1,4 @@
-# Stateless UI
+# Antifragile
 ### Data-driven views for Swift and TypeScript.
 
 Separate data from views. Views display and dispatch — nothing else. All reads, writes, validation, and business logic live in the store.
@@ -63,7 +63,7 @@ export const store = createStore({
 ```
 
 ```swift
-import StatelessUI
+import Antifragile
 
 // Pure and stateless. Pass any data to test or preview in isolation.
 struct TaskItem: View {
@@ -433,13 +433,13 @@ ui.taskForm.draft    ← { title: '', assignee: null }
 **Adapters**
 
 ```ts
-import { FirestoreAdapter }      from 'stateless-ui/adapters/firestore';
-import { MongoAdapter }          from 'stateless-ui/adapters/mongo';
-import { GunAdapter }            from 'stateless-ui/adapters/gun';
-import { DatomicAdapter }        from 'stateless-ui/adapters/datomic';
-import { CloudKitAdapter }       from 'stateless-ui/adapters/cloudkit';
-import { NSUserDefaultsAdapter } from 'stateless-ui/adapters/nsuserdefaults';
-import { KeychainAdapter }       from 'stateless-ui/adapters/keychain';
+import { FirestoreAdapter }      from '@fiskal/antifragile/adapters/firestore';
+import { MongoAdapter }          from '@fiskal/antifragile/adapters/mongo';
+import { GunAdapter }            from '@fiskal/antifragile/adapters/gun';
+import { DatomicAdapter }        from '@fiskal/antifragile/adapters/datomic';
+import { CloudKitAdapter }       from '@fiskal/antifragile/adapters/cloudkit';
+import { NSUserDefaultsAdapter } from '@fiskal/antifragile/adapters/nsuserdefaults';
+import { KeychainAdapter }       from '@fiskal/antifragile/adapters/keychain';
 ```
 
 **Atomic Write Operations** — `::delete` is universal, all others adapter-defined.
@@ -485,8 +485,8 @@ Time travel works across all backing stores simultaneously. The write log is app
 
 ```ts
 import { store }         from './store';
-import { resolveWrites } from 'stateless-ui/test';
-import { shouldPass, shouldFail } from 'stateless-ui/test';
+import { resolveWrites } from '@fiskal/antifragile/test';
+import { shouldPass, shouldFail } from '@fiskal/antifragile/test';
 
 beforeEach(() => store.seed({ tasks: [{ id: 'task-1', path: 'tasks', title: 'Deploy', status: 'active' }] }));
 afterEach(() => store.reset());
@@ -727,7 +727,7 @@ var activePartials: [TaskPartial]
 
 ## Redux
 
-| | Redux | Advantage | Stateless UI |
+| | Redux | Advantage | |
 |---|---|---|---|
 | Selectors | Memoized functions — hidden state causes stale results at runtime with no compiler warning | → | Plain query object against structural-shared immutable data — nothing to go stale |
 | Writes | Reducer functions — can't serialize, diff, or assert on a state change without running code | → | Plain data descriptors — assertable, loggable, replayable without executing anything |
@@ -743,7 +743,7 @@ var activePartials: [TaskPartial]
 
 ## Zustand
 
-| | Zustand | Advantage | Stateless UI |
+| | Zustand | Advantage | |
 |---|---|---|---|
 | Derived/formatted data | Functions in the store — stale closures return wrong values when data shape changes | → | `compute` getters scoped to `this` — always derived from live data |
 | Shared entity state | Same entity duplicated across slices — manual sync, easy to desync | → | Normalized — one copy, all subscribers see the same update automatically |
@@ -757,7 +757,7 @@ var activePartials: [TaskPartial]
 
 ## Jotai
 
-| | Jotai | Advantage | Stateless UI |
+| | Jotai | Advantage | |
 |---|---|---|---|
 | Shared entity state | Same entity across multiple atoms — updating one doesn't update the others | → | Normalized — one copy, changes propagate everywhere automatically |
 | Derived/formatted data | Derived atoms go stale when upstream atom shapes change | → | `compute` getters on the model — always correct |
@@ -770,7 +770,7 @@ var activePartials: [TaskPartial]
 
 ## MobX
 
-| | MobX | Advantage | Stateless UI |
+| | MobX | Advantage | |
 |---|---|---|---|
 | Accidental mutations | Any property set outside `@action` produces inconsistent renders silently | → | All writes go through `createMutate` — no path to accidental mutation |
 | Serialization | Class instances can't be cleanly serialized, diffed, or replayed | → | Plain data descriptors — JSON-serializable everywhere |
@@ -783,7 +783,7 @@ var activePartials: [TaskPartial]
 
 ## GraphQL (Apollo / URQL)
 
-| | GraphQL | Advantage | Stateless UI |
+| | GraphQL | Advantage | |
 |---|---|---|---|
 | Cache invalidation | Manual after every mutation — missed invalidations cause stale UI with no warning | → | Automatic — normalized store updates every subscriber on every write |
 | Optimistic updates | `optimisticResponse` duplicates the full response shape — easy to get wrong, hard to test | → | Just the write descriptor — tested as plain data, no Apollo client needed |
@@ -797,7 +797,7 @@ var activePartials: [TaskPartial]
 
 ## SwiftUI Combine
 
-| | Combine + `@Published` | Advantage | Stateless UI |
+| | Combine + `@Published` | Advantage | |
 |---|---|---|---|
 | Re-render granularity | Entire `ObservableObject` subtree re-renders when any `@Published` property changes | → | `@Query` re-renders only the view whose exact data changed |
 | Shared entity state | Same entity across multiple `ObservableObject` instances — easy to desync | → | Normalized — one copy, every `@Query` subscriber sees the update |

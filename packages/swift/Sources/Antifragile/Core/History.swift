@@ -1,4 +1,4 @@
-// StatelessUI — History
+// Antifragile — History
 // Append-only log of every dispatched mutate. Supports back/forward/goto for
 // time-travel debugging. Thread-safe via @MainActor (same actor as Cache + Store).
 

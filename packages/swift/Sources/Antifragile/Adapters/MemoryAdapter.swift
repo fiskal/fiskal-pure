@@ -1,4 +1,4 @@
-// StatelessUI — MemoryAdapter
+// Antifragile — MemoryAdapter
 // Pure in-memory backing store. Default for tests, previews, and offline-first seeding.
 // Thread-safe via an internal actor.
 
