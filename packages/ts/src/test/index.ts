@@ -80,10 +80,14 @@ export function seed(store: StoreInstance, data: Record<string, Doc[]>): void {
       })
     }
   }
-  // Apply synchronously to the in-process cache
+  // Update store cache synchronously (for useState initializer reads)
   const nextCache = applyWrites(store.getCache(), descs)
   store.setCache(nextCache)
-  // Notify affected collections
+  // Also write to the adapter so its internal cache is in sync.
+  // MemoryAdapter.write() is synchronous in practice. Failures are swallowed —
+  // some tests use a mocked failing adapter; the store cache is still seeded above.
+  store.adapter.write(descs).catch(() => {})
+  // Notify store-level subscribers
   const collections = new Set(descs.map(d => d.collection))
   for (const col of collections) {
     store.notify(col)

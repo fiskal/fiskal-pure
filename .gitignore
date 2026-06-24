@@ -1,0 +1,18 @@
+# Swift build artifacts
+packages/swift/.build/
+apps/swift-demo/.build/
+
+# Node / TypeScript
+node_modules/
+packages/ts/dist/
+apps/ts-demo/dist/
+apps/ts-demo/node_modules/
+*.tsbuildinfo
+
+# Xcode
+*.xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# macOS
+.DS_Store

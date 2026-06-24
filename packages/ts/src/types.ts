@@ -107,6 +107,38 @@ export interface Adapter {
 export type CacheState = ReadonlyMap<string, ReadonlyMap<string, Doc>>
 
 // ---------------------------------------------------------------------------
+// Model — schema + compute getters + computer methods per collection
+// ---------------------------------------------------------------------------
+
+export interface Model {
+  /** JSON Schema used to validate writes before they reach the adapter. */
+  schema?: Record<string, unknown>
+  /**
+   * Object whose own property descriptors are applied to each document via
+   * Object.defineProperties. Getters run with `this` = the enriched doc.
+   * Computer methods (methods taking a sibling arg) must be called as
+   * `doc.method(sibling)` — never destructured (loses `this` in strict mode).
+   */
+  compute?: Record<string, unknown>
+}
+
+// ---------------------------------------------------------------------------
+// Error document — written to `errors/` collection on write failure
+// ---------------------------------------------------------------------------
+
+export type ErrorKind = 'permission' | 'network' | 'validation' | 'conflict' | 'unknown'
+
+export interface ErrorDoc extends Doc {
+  action: string
+  kind: ErrorKind
+  message: string
+  payload?: Record<string, unknown>
+  writes?: WriteDescriptor[]
+  at: number
+  resolved: boolean
+}
+
+// ---------------------------------------------------------------------------
 // Store instance
 // ---------------------------------------------------------------------------
 
@@ -118,4 +150,9 @@ export interface StoreInstance {
   notify(collection: string): void
   /** Subscribe to cache changes for a given collection. */
   subscribe(collection: string, cb: () => void): Unsubscribe
+  /**
+   * Apply model compute descriptors to a raw doc. Returns the doc unchanged
+   * when no model is registered for the collection (identity function).
+   */
+  enrich(collection: string, doc: Doc): Doc
 }

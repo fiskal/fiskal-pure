@@ -15,7 +15,7 @@
 //   4. Dispatch async remote write
 //   5a. Remote confirms — cache already correct; no action
 //   5b. Remote differs  — adapter will push updated docs via subscribe
-//   5c. Remote fails    — restore snapshot; notify subscribers (rollback)
+//   5c. Remote fails    — restore snapshot; write ErrorDoc to errors/; notify
 
 import {
   applyWrites,
@@ -27,6 +27,7 @@ import {
 import type {
   CacheState,
   Doc,
+  ErrorKind,
   Query,
   StoreInstance,
   WriteDescriptor,
@@ -41,18 +42,21 @@ type Payload = Record<string, unknown>
 
 /** Write-only: payload → descriptor(s) */
 interface WriteOnlyConfig<P extends Payload> {
+  action?: string
   write: (payload: P) => WriteOp
   read?: undefined
 }
 
 /** Read-then-write: derive queries from payload, then write using read results */
 interface ReadThenWriteConfig<P extends Payload> {
+  action?: string
   read: (payload: P) => Query[]
   write: (reads: Doc[][], payload: P) => WriteOp
 }
 
 /** Transaction: array of per-step descriptor factories, applied atomically */
 interface TransactionConfig<P extends Payload> {
+  action?: string
   write: Array<(payload: P) => WriteDescriptor>
 }
 
@@ -74,6 +78,26 @@ function isTransaction<P extends Payload>(
 }
 
 // ---------------------------------------------------------------------------
+// Error classification
+// ---------------------------------------------------------------------------
+
+function classifyError(err: unknown): ErrorKind {
+  if (!(err instanceof Error)) return 'unknown'
+  const msg = err.message.toLowerCase()
+  if (msg.includes('permission') || msg.includes('403') || msg.includes('unauthorized') || msg.includes('forbidden')) return 'permission'
+  if (msg.includes('network') || msg.includes('fetch') || msg.includes('timeout') || msg.includes('offline') || msg.includes('connection')) return 'network'
+  if (msg.includes('conflict') || msg.includes('409')) return 'conflict'
+  if (msg.includes('validation') || msg.includes('schema') || msg.includes('invalid')) return 'validation'
+  return 'unknown'
+}
+
+// ---------------------------------------------------------------------------
+// Error ID counter — guarantees unique IDs even for same-ms failures
+// ---------------------------------------------------------------------------
+
+let _errorSeq = 0
+
+// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
@@ -81,6 +105,8 @@ export function createMutate<P extends Payload>(
   store: StoreInstance,
   config: MutateConfig<P>,
 ): (payload: P) => Promise<WriteOp> {
+  const action = config.action ?? 'unknown'
+
   return async function mutate(payload: P): Promise<WriteOp> {
     const beforeSnapshot = snapshotCache(store.getCache())
     let operation: WriteOp
@@ -110,7 +136,6 @@ export function createMutate<P extends Payload>(
     try {
       nextCache = applyWrites(store.getCache(), descs)
     } catch {
-      // If local application fails, do not proceed
       throw new Error('Optimistic cache update failed before remote write')
     }
     store.setCache(nextCache)
@@ -125,15 +150,34 @@ export function createMutate<P extends Payload>(
     try {
       await store.adapter.write(operation)
     } catch (err) {
-      // Rollback: restore snapshot
+      // Rollback optimistic update
       store.setCache(restoreCache(beforeSnapshot))
       for (const col of collections) {
         store.notify(col)
       }
+
+      // Write error doc to errors/ collection (always in-memory, never remote)
+      const errorId = `${action}-${Date.now()}-${++_errorSeq}`
+      const errorDesc: WriteDescriptor = {
+        collection: 'errors',
+        id: errorId,
+        fields: {
+          action,
+          kind: classifyError(err),
+          message: err instanceof Error ? err.message : String(err),
+          payload: payload as Record<string, unknown>,
+          writes: descs,
+          at: Date.now(),
+          resolved: false,
+        },
+        merge: false,
+      }
+      store.setCache(applyWrites(store.getCache(), [errorDesc]))
+      store.notify('errors')
+
       throw err
     }
 
     return operation
   }
 }
-

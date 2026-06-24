@@ -116,11 +116,9 @@ export function applyWrite(cache: CacheState, desc: WriteDescriptor): CacheState
   const existing = col.get(desc.id)
 
   let nextDoc: Doc
-  if (desc.merge && existing && desc.fields) {
-    nextDoc = applyFields(existing, desc.fields)
-  } else if (!desc.merge && desc.fields) {
-    // Full-set semantics with AtomicOp support (unusual but allowed)
-    const base: Doc = { id: desc.id }
+  if (desc.fields) {
+    // merge: true uses existing as the base (or empty doc if new); merge: false always starts fresh
+    const base: Doc = desc.merge ? (existing ?? { id: desc.id }) : { id: desc.id }
     nextDoc = applyFields(base, desc.fields)
   } else {
     // No fields provided — no-op for existing, create empty doc otherwise
@@ -159,7 +157,7 @@ export function snapshot(cache: CacheState): Record<string, Record<string, Doc>>
   for (const [col, docs] of cache) {
     out[col] = {}
     for (const [id, doc] of docs) {
-      out[col][id] = doc
+      out[col][id] = { ...doc }  // shallow copy so snapshot is independent of live cache
     }
   }
   return out
@@ -173,7 +171,7 @@ export function restore(raw: Record<string, Record<string, Doc>>): CacheState {
   for (const [col, docs] of Object.entries(raw)) {
     const inner = new Map<string, Doc>()
     for (const [id, doc] of Object.entries(docs)) {
-      inner.set(id, doc)
+      inner.set(id, { ...doc })  // copy so mutating the raw snapshot doesn't affect restored cache
     }
     cache.set(col, inner)
   }
