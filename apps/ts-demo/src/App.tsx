@@ -14,7 +14,7 @@ interface Task {
   statusLabel?: string
 }
 
-const TaskItem = ({
+const TaskItemView = ({
   task,
   archiveTask,
 }: {
@@ -38,11 +38,10 @@ const TaskItem = ({
   )
 }
 
-// TaskItem is injected as a prop — wireView provides the wired version at runtime.
-// The pure version is passed in tests and previews.
+// TaskItem is injected by wireView at runtime — the registry matches the prop name.
 // The component type is intentionally broad: wireView erases the inner prop type at the
 // boundary (see GAPS.md 5e). Runtime is fully safe; cast is at the wires layer only.
-const TaskList = ({
+const TaskListView = ({
   taskIds,
   TaskItem: Item,
 }: {
@@ -61,7 +60,7 @@ const TaskList = ({
   )
 }
 
-const AddTask = ({
+const AddTaskView = ({
   addTask,
 }: {
   addTask: (payload: { id: string; title: string }) => Promise<unknown>
@@ -92,47 +91,39 @@ const AddTask = ({
 }
 
 // ---------------------------------------------------------------------------
-// wireView — all connection logic lives here, outside the component definitions.
-// Components above have zero library imports.
+// wireView — wiring layer. Pure views above have zero library imports.
 // ---------------------------------------------------------------------------
 
-// wireView's generics tie the component type to the external props shape (P),
-// not the internal props. This means `TaskItem` (which wants {task, archiveTask})
-// cannot be passed where wireView expects ComponentType<{taskId: string}>.
-// The runtime is fully correct — wireView injects the missing props. This is a
-// known typing gap (see GAPS.md 5e) that requires a two-parameter generic fix.
-// Cast through `any` to bypass the false TS conflict at the wires layer only.
+// wireView generics tie the component type to the external (own) props shape,
+// not the internal props. Known typing gap (see GAPS.md 5e) — cast through any.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyComponent = React.ComponentType<any>
 
-// Wires TaskItem: fetches one task by id, exposes archiveTask action.
-const WiredTaskItem = wireView(
+// TaskItem: fetches one task by id, exposes archiveTask action.
+const TaskItem = wireView(
   'TaskItem',
   ({ taskId }: { taskId: string }) => ({
     task: {
-      path: 'tasks',
-      id: taskId,
-      // Subscribe to only the fields this component renders.
-      // Prevents re-renders when unrelated fields (e.g. internal flags) change.
+      path:   'tasks',
+      id:     taskId,
       fields: ['title', 'status', 'createdAt'],
     },
   }),
   ['archiveTask'],
-  TaskItem as AnyComponent,
+  TaskItemView as AnyComponent,
 )
 
-// Wires TaskList: fetches all active task ids.
-// wireView injects WiredTaskItem automatically because the prop is named 'TaskItem'
-// and it is already registered in the same wireView factory.
-const WiredTaskList = wireView(
+// TaskList: fetches all active task ids.
+// TaskItem is injected automatically — prop name matches the registered name above.
+const TaskList = wireView(
   'TaskList',
   { taskIds: { path: 'tasks', where: { status: 'active' } } },
   [],
-  TaskList as AnyComponent,
+  TaskListView as AnyComponent,
 )
 
-// Wires AddTask: exposes addTask action.
-const WiredAddTask = wireView('AddTask', {}, ['addTask'], AddTask as AnyComponent)
+// AddTask: exposes addTask action.
+const AddTask = wireView('AddTask', {}, ['addTask'], AddTaskView as AnyComponent)
 
 // ---------------------------------------------------------------------------
 // Profiler callback — fires on every React commit (dev + prod builds with
@@ -164,8 +155,8 @@ export default function App() {
   return (
     <Profiler id="App" onRender={onRender}>
       <h1>antifragile — Task Demo</h1>
-      <WiredTaskList />
-      <WiredAddTask />
+      <TaskList />
+      <AddTask />
       {import.meta.env.DEV && (
         <button
           type="button"

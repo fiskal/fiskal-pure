@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "StatelessUI",
+    name: "Antifragile",
     platforms: [
         .iOS(.v17),
         .macOS(.v14),
@@ -11,19 +11,19 @@ let package = Package(
     ],
     products: [
         .library(
-            name: "StatelessUI",
-            targets: ["StatelessUI"]
+            name: "Antifragile",
+            targets: ["Antifragile"]
         )
     ],
     targets: [
         .target(
-            name: "StatelessUI",
-            path: "Sources/StatelessUI"
+            name: "Antifragile",
+            path: "Sources/Antifragile"
         ),
         .testTarget(
-            name: "StatelessUITests",
-            dependencies: ["StatelessUI"],
-            path: "Tests/StatelessUITests"
+            name: "AntifragileTests",
+            dependencies: ["Antifragile"],
+            path: "Tests/AntifragileTests"
         )
     ]
 )

@@ -1,35 +1,33 @@
 // ---------------------------------------------------------------------------
-// model.test.ts — unit tests for Model enrichment (ADR-0007)
+// model.test.ts — unit tests for Model enrichment
 // ---------------------------------------------------------------------------
 
 import { describe, it, expect } from 'vitest'
 import { createStore } from '../src/store.js'
 import { MemoryAdapter } from '../src/adapters/memory.js'
 import { seed } from '../src/test/index.js'
-import { applyWrite, emptyCache } from '../src/cache.js'
 import type { Model } from '../src/types.js'
 
 // ---------------------------------------------------------------------------
-// Fixtures
+// Fixtures — closure-based compute (no 'this', safe to destructure)
 // ---------------------------------------------------------------------------
 
 const TaskModel: Model = {
   compute: {
-    get titleUpper() {
-      return String((this as Record<string, unknown>)['title'] ?? '').toUpperCase()
-    },
-    isOwnedBy(userId: string) {
-      return (this as Record<string, unknown>)['ownerId'] === userId
-    },
+    // Simple: receives doc, returns a plain value
+    titleUpper: (doc) => String(doc['title'] ?? '').toUpperCase(),
+
+    // Dependent: receives doc, returns a function that takes a sibling
+    isOwnedBy: (doc) => (userId: string) => doc['ownerId'] === userId,
   },
 }
 
 // ---------------------------------------------------------------------------
-// Getter enrichment
+// Simple compute enrichment
 // ---------------------------------------------------------------------------
 
-describe('model getter enrichment', () => {
-  it('applies getter to doc delivered via store.enrich', () => {
+describe('model simple compute', () => {
+  it('applies closure to doc delivered via store.enrich', () => {
     const store = createStore(MemoryAdapter(), { models: { tasks: TaskModel } })
     seed(store, { tasks: [{ id: 'tasks/t1', title: 'hello', ownerId: 'u1' }] })
 
@@ -39,19 +37,20 @@ describe('model getter enrichment', () => {
     expect((enriched as Record<string, unknown>)['titleUpper']).toBe('HELLO')
   })
 
-  it('getter reads live field values from the enriched doc', () => {
+  it('compute result is a plain value — safe to destructure', () => {
     const store = createStore(MemoryAdapter(), { models: { tasks: TaskModel } })
     const doc = { id: 'tasks/t2', title: 'world', ownerId: 'u2' }
-    const enriched = store.enrich('tasks', doc)
+    const enriched = store.enrich('tasks', doc) as Record<string, unknown>
 
-    expect((enriched as Record<string, unknown>)['titleUpper']).toBe('WORLD')
+    const { titleUpper } = enriched   // ← destructuring works; no 'this' binding
+    expect(titleUpper).toBe('WORLD')
   })
 
   it('enrich is identity when no model registered for collection', () => {
     const store = createStore(MemoryAdapter())
     const doc = { id: 'other/x', title: 'noop' }
     const result = store.enrich('other', doc)
-    expect(result).toBe(doc)  // exact same reference
+    expect(result).toBe(doc)
   })
 
   it('enrich is identity when model has no compute', () => {
@@ -65,45 +64,41 @@ describe('model getter enrichment', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Computer method enrichment
+// Dependent compute — closure captures the doc, returns a function
 // ---------------------------------------------------------------------------
 
-describe('model computer methods', () => {
-  it('computer method is callable on enriched doc', () => {
+describe('model dependent compute', () => {
+  it('dependent compute returns a callable function on the enriched doc', () => {
     const store = createStore(MemoryAdapter(), { models: { tasks: TaskModel } })
     const doc = { id: 'tasks/t4', title: 'test', ownerId: 'user-42' }
-    const enriched = store.enrich('tasks', doc)
-    const isOwnedBy = (enriched as Record<string, unknown>)['isOwnedBy'] as (id: string) => boolean
+    const enriched = store.enrich('tasks', doc) as Record<string, unknown>
 
-    expect(isOwnedBy.call(enriched, 'user-42')).toBe(true)
-    expect(isOwnedBy.call(enriched, 'user-99')).toBe(false)
+    const isOwnedBy = enriched['isOwnedBy'] as (id: string) => boolean
+    expect(isOwnedBy('user-42')).toBe(true)
+    expect(isOwnedBy('user-99')).toBe(false)
   })
 
-  it('computer preserves this when called as method', () => {
+  it('dependent compute is safe to destructure — closure holds the doc', () => {
     const store = createStore(MemoryAdapter(), { models: { tasks: TaskModel } })
     const doc = { id: 'tasks/t5', title: 'owned', ownerId: 'alice' }
-    const enriched = store.enrich('tasks', doc) as unknown as {
-      ownerId: string
-      isOwnedBy(id: string): boolean
-    }
+    const enriched = store.enrich('tasks', doc) as Record<string, unknown>
 
-    expect(enriched.isOwnedBy('alice')).toBe(true)
-    expect(enriched.isOwnedBy('bob')).toBe(false)
+    // Destructure and call without 'this' — works because it is a closure
+    const { isOwnedBy } = enriched as { isOwnedBy: (id: string) => boolean }
+    expect(isOwnedBy('alice')).toBe(true)
+    expect(isOwnedBy('bob')).toBe(false)
   })
 })
 
 // ---------------------------------------------------------------------------
-// Multiple collections
+// Per-collection model registry
 // ---------------------------------------------------------------------------
 
 describe('per-collection model registry', () => {
   it('applies correct model for each collection', () => {
     const SprintModel: Model = {
       compute: {
-        get shortName() {
-          const name = String((this as Record<string, unknown>)['name'] ?? '')
-          return name.slice(0, 3).toUpperCase()
-        },
+        shortName: (doc) => String(doc['name'] ?? '').slice(0, 3).toUpperCase(),
       },
     }
 

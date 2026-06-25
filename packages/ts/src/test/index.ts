@@ -73,7 +73,7 @@ export function seed(store: StoreInstance, data: Record<string, Doc[]>): void {
     for (const doc of docs) {
       const { id, ...rest } = doc
       descs.push({
-        collection,
+        path: collection,
         id,
         fields: rest,
         merge: false,
@@ -88,9 +88,9 @@ export function seed(store: StoreInstance, data: Record<string, Doc[]>): void {
   // some tests use a mocked failing adapter; the store cache is still seeded above.
   store.adapter.write(descs).catch(() => {})
   // Notify store-level subscribers
-  const collections = new Set(descs.map(d => d.collection))
-  for (const col of collections) {
-    store.notify(col)
+  const paths = new Set(descs.map(d => d.path))
+  for (const p of paths) {
+    store.notify(p)
   }
 }
 

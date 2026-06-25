@@ -1,99 +1,86 @@
-// ---------------------------------------------------------------------------
-// Store.swift — task management store with MemoryAdapter
-// ---------------------------------------------------------------------------
-//
-// TaskDoc schema:  { id, title, status, createdAt }
-// status values:   "active" | "archived"
-//
-// DemoStore is an ObservableObject. It owns the FiskalPure store instance and
-// exposes mutates as plain methods. Views receive data and closures as
-// arguments — they import nothing from FiskalPure.
-
 import Foundation
-import Combine
-import FiskalPure
+import Antifragile
 
 // ---------------------------------------------------------------------------
-// TaskDoc — concrete type matching the TS demo schema
+// Task — plain struct, no store dependency. Tested with plain init.
 // ---------------------------------------------------------------------------
 
-struct TaskDoc: Identifiable, Equatable {
+struct Task: Identifiable, Equatable {
     let id: String
     let title: String
     let status: String   // "active" | "archived"
-    let createdAt: String
+    let createdAt: TimeInterval
+
+    var createdAtDisplay: String {
+        Date(timeIntervalSince1970: createdAt)
+            .formatted(.dateTime.month(.abbreviated).day().year())
+    }
+
+    var statusLabel: String {
+        status == "active" ? "In Progress" : "Archived"
+    }
+
+    static func from(_ doc: [String: Any]) -> Task? {
+        guard
+            let id        = doc["id"]        as? String,
+            let title     = doc["title"]     as? String,
+            let status    = doc["status"]    as? String,
+            let createdAt = doc["createdAt"] as? TimeInterval
+        else { return nil }
+        return Task(id: id, title: title, status: status, createdAt: createdAt)
+    }
+}
+
+typealias TaskId = String
+
+// ---------------------------------------------------------------------------
+// Mutates — named write descriptors, standalone
+// ---------------------------------------------------------------------------
+
+let addTask = createMutate(action: "AddTask") { payload in
+    guard let id    = payload["id"]    as? String,
+          let title = payload["title"] as? String else { return [] }
+    return [Write(path: "tasks", id: id, fields: [
+        "title":     title,
+        "status":    "active",
+        "createdAt": Date().timeIntervalSince1970,
+    ])]
+}
+
+let archiveTask = createMutate(action: "ArchiveTask") { payload in
+    guard let id = payload["id"] as? String else { return [] }
+    return [Write(path: "tasks", id: id, fields: ["status": "archived"])]
 }
 
 // ---------------------------------------------------------------------------
-// DemoStore — observable wrapper around the FiskalPure StoreInstance
+// Store — seed data + mutates at the bottom
 // ---------------------------------------------------------------------------
 
-final class DemoStore: ObservableObject {
-    // Published list of active tasks — views observe this directly.
-    @Published private(set) var activeTasks: [TaskDoc] = []
-
-    private let store: StoreInstance
-    private var cancellable: Unsubscribe?
-
-    init() {
-        store = PureStore(adapter: MemoryAdapter())
-        startObserving()
-    }
-
-    // ---------------------------------------------------------------------------
-    // Internal — subscribe to cache changes
-    // ---------------------------------------------------------------------------
-
-    private func startObserving() {
-        cancellable = store.subscribe(collection: "tasks") { [weak self] in
-            self?.refreshTasks()
-        }
-        refreshTasks()
-    }
-
-    private func refreshTasks() {
-        let allDocs = store.readAll(collection: "tasks")
-        activeTasks = allDocs
-            .compactMap { doc -> TaskDoc? in
-                guard
-                    let title = doc["title"] as? String,
-                    let status = doc["status"] as? String,
-                    status == "active",
-                    let createdAt = doc["createdAt"] as? String
-                else { return nil }
-                return TaskDoc(id: doc.id, title: title, status: status, createdAt: createdAt)
-            }
-            .sorted { $0.createdAt < $1.createdAt }
-    }
-
-    // ---------------------------------------------------------------------------
-    // Mutates — pure data descriptors executed via the store
-    // ---------------------------------------------------------------------------
-
-    /// Create a new active task.
-    func addTask(title: String) {
-        let id = "task-\(UUID().uuidString)"
-        let write = WriteDescriptor(
-            collection: "tasks",
-            id: id,
-            fields: [
-                "title": title,
-                "status": "active",
-                "createdAt": ISO8601DateFormatter().string(from: Date()),
+let store = Store.createStore {
+    BackingStoreConfig(
+        name: "default",
+        adapter: MemoryAdapter(initial: [
+            "tasks": [
+                "task-1": [
+                    "id": "task-1",
+                    "title": "Deploy to production",
+                    "status": "active",
+                    "createdAt": Date().timeIntervalSince1970 - 86_400,
+                ],
+                "task-2": [
+                    "id": "task-2",
+                    "title": "Write release notes",
+                    "status": "active",
+                    "createdAt": Date().timeIntervalSince1970 - 3_600,
+                ],
+                "task-3": [
+                    "id": "task-3",
+                    "title": "Update dependencies",
+                    "status": "active",
+                    "createdAt": Date().timeIntervalSince1970,
+                ],
             ],
-            merge: false
-        )
-        Task { try? await store.write(write) }
-    }
-
-    /// Archive an existing task.
-    func archiveTask(id: String) {
-        let write = WriteDescriptor(
-            collection: "tasks",
-            id: id,
-            fields: ["status": "archived"],
-            merge: true
-        )
-        Task { try? await store.write(write) }
-    }
+        ]),
+        mutates: [addTask, archiveTask]
+    )
 }

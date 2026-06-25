@@ -114,12 +114,17 @@ export interface Model {
   /** JSON Schema used to validate writes before they reach the adapter. */
   schema?: Record<string, unknown>
   /**
-   * Object whose own property descriptors are applied to each document via
-   * Object.defineProperties. Getters run with `this` = the enriched doc.
-   * Computer methods (methods taking a sibling arg) must be called as
-   * `doc.method(sibling)` — never destructured (loses `this` in strict mode).
+   * Closure-based compute properties. Each key maps to a function that receives
+   * the raw document and returns a plain value (for simple derived fields) or a
+   * function (for dependent computes that take a sibling document).
+   *
+   * The store calls each function eagerly at read time and assigns the result as
+   * a plain property on the enriched doc — safe to destructure, safe to spread.
+   *
+   * Simple:    statusLabel: (doc) => doc.status === 'active' ? 'In Progress' : 'Archived'
+   * Dependent: progress:    (doc) => (sprint) => doc.done / sprint.total
    */
-  compute?: Record<string, unknown>
+  compute?: Record<string, (doc: Record<string, unknown>) => unknown>
 }
 
 // ---------------------------------------------------------------------------

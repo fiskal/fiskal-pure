@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 //
 // Usage:
-//   traceRender('WiredTaskItem')         → logs every render with a count
+//   traceRender('TaskItem')              → logs every render with a count
 //   traceSubscription('tasks', 3, 0.8)  → logs subscription callback timing
 //   traceMutate('archiveTask', payload) → logs mutate invocation
 //   printTraceReport()                  → summary table to console

@@ -69,7 +69,7 @@ export function createWireView(
     actionNames: string[],
     component: ComponentType<P>,
   ): ComponentType<Partial<P>> {
-    const WiredComponent = (ownProps: Partial<P>): ReactElement | null => {
+    const Container = (ownProps: Partial<P>): ReactElement | null => {
       const resolvedMap =
         typeof queries === 'function'
           ? (queries as QueryFn<P>)(ownProps as P)
@@ -132,9 +132,9 @@ export function createWireView(
       return createElement(component, merged)
     }
 
-    WiredComponent.displayName = `Wired(${name})`
-    registry.set(name, WiredComponent as ComponentType<Record<string, unknown>>)
-    return WiredComponent
+    Container.displayName = name
+    registry.set(name, Container as ComponentType<Record<string, unknown>>)
+    return Container
   }
 
   return wireView

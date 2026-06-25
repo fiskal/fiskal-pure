@@ -15,7 +15,7 @@ let package = Package(
         .executableTarget(
             name: "SwiftDemoApp",
             dependencies: [
-                .product(name: "FiskalPure", package: "swift"),
+                .product(name: "Antifragile", package: "swift"),
             ],
             path: "Sources/SwiftDemoApp"
         ),

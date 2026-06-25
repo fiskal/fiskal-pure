@@ -37,7 +37,7 @@ A pure view. Zero library imports. Zero hooks.
 
 ```tsx
 // TaskItem.tsx — no imports, no hooks
-const TaskItem = ({ task, setStatus }) => (
+const TaskItemView = ({ task, setStatus }) => (
   <li>
     <span>{task.title}</span>
     <span>{task.status}</span>
@@ -48,18 +48,18 @@ const TaskItem = ({ task, setStatus }) => (
 )
 ```
 
-Wire it in the same file. The wire is a plain data declaration:
+Wire it in the same file. The wire is a plain data declaration — not a hook, not a class:
 
 ```tsx
 import { wireView } from './store'
 
-wireView(
+const TaskItem = wireView(
   'TaskItem',
   ({ taskId }) => ({
     task: { path: 'tasks', id: taskId },
   }),
   ['setStatus'],
-  TaskItem,
+  TaskItemView,
 )
 ```
 
@@ -67,14 +67,14 @@ Test with plain props — no Provider, no store, no setup:
 
 ```tsx
 render(
-  <TaskItem
+  <TaskItemView
     task={{ id: 'tasks/task-1', title: 'Deploy', status: 'active' }}
     setStatus={vi.fn()}
   />
 )
 ```
 
-`wireView` is the only import. `TaskItem` itself has none.
+`wireView` is the only import. The pure view has none.
 
 ---
 
@@ -110,10 +110,10 @@ export const store = createStore(
     mutates: {
       setStatus: {
         write: ({ id, status }) => ({
-          path: 'tasks',
+          path:   'tasks',
           id,
           fields: { status },
-          // merge is the default — only status changes, all other fields survive
+          // merge is the default — only status changes; all other fields survive
         }),
       },
     },
@@ -129,13 +129,13 @@ export const wireView = createWireView(store)
 
 ## 4. Dependency Injection
 
-Wired components are not exported. `wireView` registers each component by name. When another wired component has a prop matching that name, the wired version is injected automatically.
+`wireView` registers each component by name. When another wired component has a prop matching that name, the registered component is injected automatically — no import, no export.
 
 ```tsx
 // TaskList.tsx
 import { wireView } from './store'
 
-const TaskList = ({ taskIds, TaskItem: Item }) => (
+const TaskListView = ({ taskIds, TaskItem: Item }) => (
   <ul>
     {taskIds.map(({ id }) => (
       <Item key={id} taskId={id} />
@@ -143,9 +143,8 @@ const TaskList = ({ taskIds, TaskItem: Item }) => (
   </ul>
 )
 
-// WiredTaskItem is injected into TaskList's `TaskItem` prop automatically
-// because it was registered above with that name. Nothing to export.
-wireView(
+// TaskItem is injected automatically — the prop name matches the registered name
+const TaskList = wireView(
   'TaskList',
   {
     taskIds: {
@@ -154,116 +153,132 @@ wireView(
     },
   },
   [],
-  TaskList,
+  TaskListView,
 )
 ```
+
+`TaskListView` receives `taskIds` from the store and `TaskItem` from the registry. Nothing to export, nothing to import.
 
 Props that come from the parent (not the store) pass through directly. Typically these are IDs or parameters that scope the query:
 
 ```tsx
-// Parent passes taskId — wireView uses it in the query function
-wireView(
+const TaskItem = wireView(
   'TaskItem',
   ({ taskId }) => ({
     task: { path: 'tasks', id: taskId },
   }),
   ['setStatus'],
-  TaskItem,
+  TaskItemView,
 )
 
-// Usage — taskId is the only prop the parent provides
-<WiredTaskItem taskId="tasks/task-1" />
+// The parent passes taskId; wireView uses it in the query function
+<TaskItem taskId="tasks/task-1" />
 ```
 
 ---
 
 ## 5. Compute Properties
 
-Getters run at read time on the enriched document. The view reads a plain value — it never knows computation happened.
+Compute functions close over the document. The result is a plain value assigned eagerly at read time — safe to destructure, safe to spread, no `this` to lose.
 
-**Basic — derived from the document's own fields:**
+**Simple — derives a value from the document's own fields:**
 
 ```ts
 models: {
   tasks: {
     schema: { /* ... */ },
     compute: {
-      get statusLabel(this: { status: string }) {
-        return this.status === 'active' ? 'In Progress' : 'Archived'
-      },
-      get createdAtDisplay(this: { createdAt: number }) {
-        return new Date(this.createdAt).toLocaleDateString(undefined, {
-          month: 'short', day: 'numeric', year: 'numeric',
-        })
-      },
+      statusLabel:      (doc) => doc.status === 'active' ? 'In Progress' : 'Archived',
+      createdAtDisplay: (doc) => new Date(doc.createdAt).toLocaleDateString(undefined, {
+        month: 'short', day: 'numeric', year: 'numeric',
+      }),
     },
   },
 },
 
-// Component — plain property read; no import, no function call
-const TaskItem = ({ task }) => (
-  <li>
-    <span>{task.title}</span>
-    <span>{task.statusLabel}</span>
-    <span>{task.createdAtDisplay}</span>
-  </li>
-)
+// Component — plain property read; destructure freely
+const TaskItemView = ({ task }) => {
+  const { title, statusLabel, createdAtDisplay } = task  // ← safe to destructure
+  return (
+    <li>
+      <span>{title}</span>
+      <span>{statusLabel}</span>
+      <span>{createdAtDisplay}</span>
+    </li>
+  )
+}
 ```
 
-Never destructure getters — `this` is lost in strict mode:
-
-```ts
-const { statusLabel } = task   // WRONG — throws
-const label = task.statusLabel // CORRECT
-```
-
-**Dependent — pass a sibling document as an argument:**
+**Dependent — closes over the document, returns a function that takes a sibling:**
 
 ```ts
 compute: {
-  // Call as a method on the doc: task.completionPercent(sprint)
-  // Never destructure: const { completionPercent } = task — 'this' is lost
-  completionPercent(
-    this: { completedItems: number },
-    sprint: { totalItems: number },
-  ) {
-    return Math.round((this.completedItems / sprint.totalItems) * 100)
-  },
+  // task.completionPercent is a function; call it with a sibling doc
+  // Destructure it freely — the closure already captured the task doc
+  completionPercent: (doc) => (sprint) =>
+    Math.round((doc.completedItems / sprint.totalItems) * 100),
 },
 
 // Component
-const SprintRow = ({ task, sprint }) => (
-  <li>{task.completionPercent(sprint)}%</li>
-)
+const SprintRowView = ({ task, sprint }) => {
+  const { completionPercent } = task          // ← safe to destructure
+  return <li>{completionPercent(sprint)}%</li>
+}
 ```
 
-**Schema versioning — migrate documents at read time, never in storage:**
+**Schema versioning:**
+
+Documents change shape over time. `versioning` tells the store how to roll a document forward (older storage → current app) or backward (current app → older storage). Each step describes one schema version boundary.
+
+- **rollforward** — applied when a stored document is older than the current schema. Run in order: step 1 first, then step 2, etc. The function receives the old doc and returns the new one.
+- **rollback** — applied when the current app writes to storage that expects an older schema (rolling deployment). Run in reverse order.
+
+Migration happens at read time — nothing is written back to storage.
 
 ```ts
 versioning: [
-  // v1 → v2: added 'priority' field
+  // Step 1 — v1 → v2: added 'priority' field
+  // rollforward: old docs missing 'priority' get the default
+  // rollback:    remove 'priority' before writing to v1 storage
   {
     partialSchema: {
       priority: { type: 'string', enum: ['high', 'medium', 'low'] },
     },
-    rollforward: (doc) => ({ ...doc, priority: doc.priority ?? 'medium' }),
-    rollback:    (doc) => { const { priority, ...rest } = doc; return rest },
+    rollforward: (doc) => ({
+      ...doc,
+      priority: doc.priority ?? 'medium',
+    }),
+    rollback: (doc) => {
+      const { priority, ...rest } = doc
+      return rest
+    },
   },
-  // v2 → v3: renamed dueDate → due_at
+
+  // Step 2 — v2 → v3: renamed dueDate → due_at
+  // rollforward: copy dueDate into due_at if present
+  // rollback:    copy due_at back to dueDate
   {
-    rollforward: (doc) => doc.dueDate ? { ...doc, due_at: doc.dueDate } : doc,
-    rollback:    (doc) => doc.due_at  ? { ...doc, dueDate: doc.due_at } : doc,
+    rollforward: (doc) =>
+      doc.dueDate
+        ? { ...doc, due_at: doc.dueDate }
+        : doc,
+    rollback: (doc) =>
+      doc.due_at
+        ? { ...doc, dueDate: doc.due_at }
+        : doc,
   },
 ],
 ```
 
-A v1 document is delivered to the component as v3. No server migration job. During a rolling deployment both field names coexist — neither client gets `undefined`.
+A v1 document arrives at the component as v3. During a rolling deployment both field names coexist — neither client gets `undefined`.
 
 ---
 
 ## 6. Adapters
 
 One `createStore` call. Multiple adapters route by path prefix. No changes to components, queries, or mutates when you swap adapters.
+
+The key `'default'` is a reserved name — it matches all paths not claimed by another adapter. All other keys are the path prefix for that store.
 
 ```ts
 import { createStore, createWireView } from '@fiskal/antifragile'
@@ -272,30 +287,31 @@ import { LocalStorageAdapter } from '@fiskal/antifragile/adapters/localStorage'
 import { FirestoreAdapter }    from '@fiskal/antifragile/adapters/firestore'
 
 export const store = createStore({
+  // 'default' — catches all paths not claimed below
   default: {
-    adapter: FirestoreAdapter(firebaseApp),  // tasks, sprints → Firestore
+    adapter: FirestoreAdapter(firebaseApp),
     models:  { tasks: TaskModel },
   },
+
+  // 'settings' — all paths starting with 'settings/'
   settings: {
-    adapter: LocalStorageAdapter(),          // settings/* → localStorage; persisted
-    paths:   ['settings/'],
+    adapter: LocalStorageAdapter(),   // persisted locally; cross-tab sync
   },
+
+  // 'ui' — all paths starting with 'ui/'
   ui: {
-    adapter: MemoryAdapter(),               // ui/* → in-memory; resets on reload
-    paths:   ['ui/'],
+    adapter: MemoryAdapter(),         // ephemeral; resets on reload
   },
 })
 
 export const wireView = createWireView(store)
 ```
 
-Path-based routing is structural. A `ui/` write cannot reach Firestore — the prefix is the enforcement mechanism.
-
-| Path prefix | Adapter | Behaviour |
+| Key | Paths matched | Behaviour |
 |---|---|---|
-| `tasks/`, `sprints/` | FirestoreAdapter | Real-time, cloud-synced, persisted |
-| `settings/` | LocalStorageAdapter | Persisted locally, cross-tab sync |
-| `ui/` | MemoryAdapter | Ephemeral, resets on reload |
+| `default` | everything not claimed | FirestoreAdapter — real-time, cloud-synced |
+| `settings` | `settings/*` | LocalStorageAdapter — local, persisted |
+| `ui` | `ui/*` | MemoryAdapter — ephemeral, in-process |
 
 ---
 
@@ -306,20 +322,24 @@ Every write is stored in an append-only log as an immutable snapshot. Any prior 
 ```ts
 store.history.log()
 // → [
-//   { action: 'SetStatus', writes: [{ id: 'tasks/task-1', fields: { status: 'archived' } }], at: 1750000060 },
+//   {
+//     action: 'SetStatus',
+//     writes: [{ id: 'tasks/task-1', fields: { status: 'archived' } }],
+//     at: 1750000060,
+//   },
 // ]
 
 store.history.back()         // roll back last write (in-memory)
 store.history.forward()      // replay rolled-back write
 store.history.goto(3)        // jump to any snapshot by index
-store.history.currentIndex() // snapshot index — save before opening a wizard
+store.history.currentIndex() // save this before opening a wizard
 ```
 
 When a bug is filed, the write log is the bug report. Every mutation is there — named, in order, with full field payloads. Replay the sequence locally, find the step that produced the wrong state, fix the write descriptor.
 
-Snapshots use structural sharing. The log costs only the memory of what actually changed per write, not a full copy. Restoring a snapshot is O(1): replace the cache pointer, notify only the collections that changed between the current and target snapshot.
+Snapshots use structural sharing — the log costs only the memory of what actually changed per write. Restoring a snapshot is O(1): replace the cache pointer, notify only the collections that changed between the current and target snapshot.
 
-**Time travel is in-memory.** It rolls back the cache; it does not send compensating writes to the server. For persistent undo after sync:
+**Time travel is in-memory.** For persistent undo after a remote sync, issue a compensating write:
 
 ```ts
 const last = store.history.log().at(-1)
@@ -332,29 +352,34 @@ if (last?.action === 'SetStatus') {
 
 ## 8. Mutations
 
-Every mutate is a named, serialisable write descriptor — not a function called inside a component. Every write is synchronous against the cache (optimistic) and async against the backing store. On failure the cache rolls back automatically.
+Every mutate is a named, serialisable write descriptor. Every write is synchronous against the cache (optimistic) and async against the backing store. On failure the cache rolls back and affected subscribers are notified automatically.
 
 **Simple write:**
 
 ```ts
+import { createMutate } from '@fiskal/antifragile'
+
 const setStatus = createMutate(store, {
   write: ({ id, status }: { id: string; status: string }) => ({
-    path: 'tasks',
+    path:   'tasks',
     id,
     fields: { status },
   }),
 })
 
 setStatus({ id: 'tasks/task-1', status: 'archived' })
-await setStatus({ id: 'tasks/task-1', status: 'archived' })  // await remote confirmation
 ```
 
-**Batch write** — multiple writes in one call, applied in sequence:
+**Batch write** — multiple descriptors applied in sequence:
 
 ```ts
 const archiveSprint = createMutate(store, {
   write: ({ sprintId, taskIds }: { sprintId: string; taskIds: string[] }) => [
-    { path: 'sprints', id: sprintId,  fields: { archived: true } },
+    {
+      path:   'sprints',
+      id:     sprintId,
+      fields: { archived: true },
+    },
     ...taskIds.map(id => ({
       path:   'tasks',
       id,
@@ -364,55 +389,71 @@ const archiveSprint = createMutate(store, {
 })
 ```
 
-**ACID transaction** — array passed to the adapter as one indivisible unit. All succeed or none do:
+**ACID transaction** — the adapter receives the array as one indivisible unit. All succeed or none do. A component can roll back immediately if the transaction fails:
 
 ```ts
 const transfer = createMutate(store, {
   write: ({ from, to, amount }: { from: string; to: string; amount: number }) => [
-    { path: 'accounts', id: from, fields: { balance: { __op: '::increment', n: -amount } } },
-    { path: 'accounts', id: to,   fields: { balance: { __op: '::increment', n:  amount } } },
+    { path: 'accounts', id: from, fields: { balance: increment(-amount) } },
+    { path: 'accounts', id: to,   fields: { balance: increment(amount)  } },
   ],
 })
-// A network failure rolls back both writes — neither balance changes
 ```
 
-**Atomic operations — numeric increment:**
+```tsx
+// Component rolls back on failure — no try/catch; errors land in errors/
+const TransferView = ({ fromAccount, toAccount, transfer }) => (
+  <button onClick={() => transfer({ from: fromAccount.id, to: toAccount.id, amount: 50 })}>
+    Transfer $50
+  </button>
+)
+// If the adapter rejects the transaction, both balances are restored
+// and an error doc appears in errors/ for the ErrorBanner to show
+```
+
+**Atomic operations** — import the helpers; no raw `__op` objects:
+
+```ts
+import { increment, arrayUnion, arrayRemove, deleteField, serverTimestamp } from '@fiskal/antifragile'
+```
+
+Increment a numeric field:
 
 ```ts
 write: ({ id }) => ({
-  path: 'posts', id, fields: { views: { __op: '::increment', n: 1 } },
+  path: 'posts', id, fields: { views: increment(1) },
 })
 ```
 
-**Atomic operations — array union (add without duplicates):**
+Add to an array without duplicates:
 
 ```ts
 write: ({ id, tag }) => ({
-  path: 'tasks', id, fields: { tags: { __op: '::arrayUnion', values: [tag] } },
+  path: 'tasks', id, fields: { tags: arrayUnion(tag) },
 })
 ```
 
-**Atomic operations — array remove:**
+Remove from an array:
 
 ```ts
 write: ({ id, tag }) => ({
-  path: 'tasks', id, fields: { tags: { __op: '::arrayRemove', values: [tag] } },
+  path: 'tasks', id, fields: { tags: arrayRemove(tag) },
 })
 ```
 
-**Atomic operations — delete a field:**
+Delete a specific field from the document:
 
 ```ts
 write: ({ id }) => ({
-  path: 'tasks', id, fields: { draftTitle: { __op: '::delete' } },
+  path: 'tasks', id, fields: { draftTitle: deleteField() },
 })
 ```
 
-**Atomic operations — server timestamp (assigned at commit time):**
+Server-assigned timestamp at commit time:
 
 ```ts
 write: ({ id }) => ({
-  path: 'tasks', id, fields: { updatedAt: { __op: '::serverTimestamp' } },
+  path: 'tasks', id, fields: { updatedAt: serverTimestamp() },
 })
 ```
 
@@ -420,69 +461,69 @@ write: ({ id }) => ({
 
 ## 9. wireView
 
-`wireView` creates a container that owns the data. The view inside never imports from the library.
+`wireView` defines a container component. That container uses `useRead` internally for each query key, collects the results as plain props, and renders the pure view.
 
 ```ts
-wireView(
+const TaskItem = wireView(
   'TaskItem',
   ({ taskId }) => ({
     task:   { path: 'tasks',   id: taskId },
     sprint: { path: 'sprints', id: 'sprints/current', fields: ['name', 'totalItems'] },
   }),
   ['setStatus'],
-  TaskItem,
+  TaskItemView,
 )
 ```
 
-**Under the covers — `wireView` is `useRead` + props injection:**
+**Under the covers — `wireView` is `useRead` + props assembly:**
 
 ```tsx
-function WiredTaskItem({ taskId }) {
+function TaskItem({ taskId }) {
   const task      = useRead({ path: 'tasks',   id: taskId })
   const sprint    = useRead({ path: 'sprints', id: 'sprints/current', fields: ['name', 'totalItems'] })
   const setStatus = store.mutates.setStatus
-  return <TaskItem task={task} sprint={sprint} setStatus={setStatus} />
+  return <TaskItemView task={task} sprint={sprint} setStatus={setStatus} />
 }
 ```
 
-`useRead` subscribes to the store, fires on every write to that path, and returns the current doc. Use it directly for queries too dynamic for a static spec — but always in a container file, never inside the view.
+`useRead` subscribes to the store and fires on every write to that path. Use it directly when a query is too dynamic for a static spec — always in a container file, never inside the pure view.
 
-**Guard against loading and not-found at the component boundary:**
+**Guard against loading and not-found at the view boundary:**
 
 ```tsx
-const TaskItem = ({ task }: { task: Task | undefined | null }) => {
+const TaskItemView = ({ task }: { task: Task | undefined | null }) => {
   if (task === undefined) return <li>Loading…</li>
   if (task === null)      return <li>Not found.</li>
   return <li>{task.title}</li>
 }
 ```
 
-**JSON schema validation** — declared on the model, enforced at the read/write boundary. A write that fails validation is rejected before it reaches the adapter. The store writes an error document to `errors/` instead. No try/catch at the call site.
+**JSON schema validation** — declared on the model, enforced at the read/write boundary. A write that fails the schema is rejected before it reaches the adapter. The store writes an error doc to `errors/` instead. No try/catch at the call site.
 
-**Field narrowing** — subscribe only to the fields the component uses. Re-renders only fire when those specific fields change.
+**Field narrowing** — subscribe only to the fields the component renders. Re-renders fire only when those specific fields change:
 
 ```ts
-wireView(
+const TaskItem = wireView(
   'TaskItem',
   ({ taskId }) => ({
     task: {
       path:   'tasks',
       id:     taskId,
-      fields: ['title', 'status'],  // re-renders only when title or status changes
+      fields: ['title', 'status'],   // re-renders only on title or status change
     },
   }),
   ['setStatus'],
-  TaskItem,
+  TaskItemView,
 )
 ```
 
-Start without narrowing. Add `fields` only when profiling shows the re-render is measurably expensive. The component does not change — only the query.
+Start without narrowing. Add `fields` only when profiling shows the re-render is measurably expensive. The pure view does not change — only the query.
 
 ---
 
 ## 10. Queries
 
-Query shape depends on the backing store. The store resolves each query to an adapter-native call.
+Query shapes depend on the backing store. The store resolves each query to an adapter-native call.
 
 **Firestore:**
 
@@ -494,7 +535,10 @@ Query shape depends on the backing store. The store resolves each query to an ad
 { path: 'tasks' }
 
 // Filtered
-{ path: 'tasks', where: { status: 'active' } }
+{
+  path:  'tasks',
+  where: { status: 'active' },
+}
 
 // Filtered + sorted
 {
@@ -515,10 +559,10 @@ Query shape depends on the backing store. The store resolves each query to an ad
 **LocalStorage:**
 
 ```ts
-// Settings stored as a single document
+// Settings stored as a single flat document
 { path: 'settings', id: 'settings/app' }
 
-// Write a setting
+// Write a single setting field
 write: ({ theme }: { theme: string }) => ({
   path:   'settings',
   id:     'settings/app',
@@ -537,41 +581,48 @@ A document id is a full path. Store the active id in `ui/` — any component can
 ```ts
 const openModal  = createMutate(store, {
   write: ({ id }: { id: string }) => ({
-    path: 'ui', id: 'ui/modal/active', fields: { id },
+    path:   'ui',
+    id:     'ui/modal/active',
+    fields: { id },   // e.g. 'tasks/task-1' or 'sprints/sprint-A'
   }),
 })
+
 const closeModal = createMutate(store, {
-  write: () => ({ path: 'ui', id: 'ui/modal/active', delete: true }),
+  write: () => ({
+    path:   'ui',
+    id:     'ui/modal/active',
+    delete: true,
+  }),
 })
 ```
 
 ```tsx
 // Any component deep in the tree — openModal injected, no Context required
-wireView(
+const TaskRow = wireView(
   'TaskRow',
   ({ taskId }) => ({
     task: { path: 'tasks', id: taskId },
   }),
   ['openModal'],
-  TaskRow,
+  TaskRowView,
 )
 
 // Shell at the root — reads the stored id
-wireView(
+const ModalShell = wireView(
   'ModalShell',
   { active: { path: 'ui', id: 'ui/modal/active' } },
   ['closeModal'],
-  ModalShell,
+  ModalShellView,
 )
 
 // Detail uses the stored id as its own query
-wireView(
+const ModalDetail = wireView(
   'ModalDetail',
   ({ activeId }) => ({
     item: { path: activeId.split('/')[0], id: activeId },
   }),
   ['closeModal'],
-  ModalDetail,
+  ModalDetailView,
 )
 ```
 
@@ -584,18 +635,23 @@ No `ReactDOM.createPortal`. No `React.createContext`. No type registry.
 // BEFORE: const { setTheme } = useContext(ThemeContext)
 // AFTER:  setTheme arrives as a prop via wireView — no Provider, no consumer
 
-// useCallback — wireView action references are stable; no wrapper needed
-// BEFORE: const handleArchive = useCallback(() => archiveTask({ id }), [id, archiveTask])
+// useCallback — not needed; wireView action references are stable across renders
+// BEFORE: const handleArchive = useCallback(() => setStatus({ id }), [id, setStatus])
 // AFTER:  <button onClick={() => setStatus({ id, status: 'archived' })}>Archive</button>
 
 // useMemo — filter in the query, not the component
 // BEFORE: const active = useMemo(() => tasks.filter(t => t.status === 'active'), [tasks])
 // AFTER:
-wireView(
+const TaskList = wireView(
   'TaskList',
-  { taskIds: { path: 'tasks', where: { status: 'active' } } },
+  {
+    taskIds: {
+      path:  'tasks',
+      where: { status: 'active' },
+    },
+  },
   [],
-  TaskList,
+  TaskListView,
 )
 ```
 
@@ -606,13 +662,15 @@ Write failures land in `errors/` automatically. Subscribe from any component —
 ```ts
 const dismissError = createMutate(store, {
   write: ({ id }: { id: string }) => ({
-    path: 'errors', id, fields: { resolved: true },
+    path:   'errors',
+    id,
+    fields: { resolved: true },
   }),
 })
 ```
 
 ```tsx
-const ErrorBanner = ({ errors, dismissError }) => (
+const ErrorBannerView = ({ errors, dismissError }) => (
   <ul>
     {errors.map(err => (
       <li key={err.id}>
@@ -623,51 +681,65 @@ const ErrorBanner = ({ errors, dismissError }) => (
   </ul>
 )
 
-wireView(
+const ErrorBanner = wireView(
   'ErrorBanner',
-  { errors: { path: 'errors', where: { resolved: false } } },
+  {
+    errors: {
+      path:  'errors',
+      where: { resolved: false },
+    },
+  },
   ['dismissError'],
-  ErrorBanner,
+  ErrorBannerView,
 )
 ```
 
 ### Just-in-time schema migration
 
-Old documents are migrated transparently at read time — nothing written back to storage. The store applies `versioning` steps in order when the document leaves the cache.
+See [Compute Properties — Schema versioning](#5-compute-properties) for how `rollforward` and `rollback` work. Here is the complete model with versioning applied:
 
 ```ts
-// Pulling in a v2 document into a v3 app
-versioning: [
-  // v1 → v2: added 'priority'
-  {
-    partialSchema: {
-      priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+const TaskModel = {
+  schema: {
+    type: 'object',
+    properties: {
+      id:       { type: 'string' },
+      title:    { type: 'string' },
+      status:   { type: 'string' },
+      priority: { type: 'string', enum: ['high', 'medium', 'low'] },  // added v2
+      due_at:   { type: 'number' },                                    // added v3
     },
-    rollforward: (doc) => ({ ...doc, priority: doc.priority ?? 'medium' }),
-    rollback:    (doc) => { const { priority, ...rest } = doc; return rest },
+    required: ['id', 'title', 'status'],
   },
-  // v2 → v3: renamed dueDate → due_at
-  {
-    rollforward: (doc) => doc.dueDate ? { ...doc, due_at: doc.dueDate } : doc,
-    rollback:    (doc) => doc.due_at  ? { ...doc, dueDate: doc.due_at } : doc,
-  },
-],
+  versioning: [
+    // v1 → v2
+    {
+      rollforward: (doc) => ({ ...doc, priority: doc.priority ?? 'medium' }),
+      rollback:    (doc) => { const { priority, ...rest } = doc; return rest },
+    },
+    // v2 → v3
+    {
+      rollforward: (doc) => doc.dueDate ? { ...doc, due_at: doc.dueDate } : doc,
+      rollback:    (doc) => doc.due_at  ? { ...doc, dueDate: doc.due_at } : doc,
+    },
+  ],
+}
 ```
-
-A doc stored as v2 is delivered to the component as v3. Rolling deployments: both field names coexist — neither client gets `undefined`.
 
 ### Infinite scroll with lookahead
 
-Store the cursor in `ui/`. Append results to the collection on load. No component logic required.
+Store the cursor in `ui/`. Append results to the collection on each page load. No component logic required.
 
 ```ts
 const loadNextPage = createMutate(store, {
-  read: () => ({ cursor: { path: 'ui', id: 'ui/taskList/cursor' } }),
+  read:  () => ({ cursor: { path: 'ui', id: 'ui/taskList/cursor' } }),
   write: async ({ cursor }) => {
     const page = await fetchTasks({ after: cursor?.lastId, limit: 20 })
     return [
       ...page.items.map(task => ({
-        path: 'tasks', id: task.id, fields: task,
+        path:   'tasks',
+        id:     task.id,
+        fields: task,
       })),
       {
         path:   'ui',
@@ -678,17 +750,24 @@ const loadNextPage = createMutate(store, {
   },
 })
 
-wireView(
+const TaskList = wireView(
   'TaskList',
   {
-    taskIds: { path: 'tasks', where: { status: 'active' }, orderBy: { createdAt: 'asc' } },
-    cursor:  { path: 'ui', id: 'ui/taskList/cursor' },
+    taskIds: {
+      path:    'tasks',
+      where:   { status: 'active' },
+      orderBy: { createdAt: 'asc' },
+    },
+    cursor: {
+      path: 'ui',
+      id:   'ui/taskList/cursor',
+    },
   },
   ['loadNextPage'],
-  TaskList,
+  TaskListView,
 )
 
-const TaskList = ({ taskIds, cursor, loadNextPage, TaskItem: Item }) => (
+const TaskListView = ({ taskIds, cursor, loadNextPage, TaskItem: Item }) => (
   <>
     <ul>{taskIds.map(({ id }) => <Item key={id} taskId={id} />)}</ul>
     {cursor?.hasMore && (
@@ -702,17 +781,17 @@ const TaskList = ({ taskIds, cursor, loadNextPage, TaskItem: Item }) => (
 
 ## 12. Testing
 
-No test harness. No Provider. No mock store. Components are plain functions — test them with plain props.
+No test harness. No Provider. No mock store. Pure views are plain functions — test them with plain props.
 
 **Component test:**
 
 ```tsx
 import { render, screen } from '@testing-library/react'
-import { TaskItem } from './TaskItem'
+import { TaskItemView } from './TaskItem'
 
 test('renders title', () => {
   render(
-    <TaskItem
+    <TaskItemView
       task={{ id: 'tasks/task-1', title: 'Deploy', status: 'active' }}
       setStatus={vi.fn()}
     />
@@ -728,7 +807,10 @@ import { resolveWrites } from '@fiskal/antifragile/test'
 import { setStatus } from './store'
 
 test('setStatus writes the correct descriptor', async () => {
-  const writes = await resolveWrites(setStatus, { id: 'tasks/task-1', status: 'archived' })
+  const writes = await resolveWrites(setStatus, {
+    id:     'tasks/task-1',
+    status: 'archived',
+  })
   expect(writes).toEqual([{
     path:   'tasks',
     id:     'tasks/task-1',
@@ -751,7 +833,7 @@ test('archive a task', async ({ page }) => {
 })
 ```
 
-**TDD without a browser:** write the mutate test and component test first. Both pass without a DOM, without a server, without starting the app. Wire up the application only when the logic is green. The view can be added or changed without touching the test cases — no test breakage from view changes, no test changes from logic changes.
+**TDD without a browser:** write the mutate test and component test first. Both pass without a DOM, without a server. Wire the app only when the logic is green. The pure view can be added or changed without touching any test cases — no test breakage from view changes, no test changes from logic changes.
 
 ---
 
@@ -776,7 +858,11 @@ let store = Store.createStore {
     name: "default",
     adapter: MemoryAdapter(initial: [
       "tasks": [
-        "tasks/task-1": ["id": "tasks/task-1", "title": "Deploy", "status": "active"],
+        "tasks/task-1": [
+          "id":     "tasks/task-1",
+          "title":  "Deploy",
+          "status": "active",
+        ],
       ],
     ]),
     models: [
@@ -800,7 +886,7 @@ let store = Store.createStore {
 import SwiftUI
 import Antifragile   // for wireView only
 
-struct TaskItem: View {
+struct TaskItemView: View {
   let task: [String: Any]
   let setStatus: ([String: Any]) async throws -> Void
 
@@ -816,17 +902,17 @@ struct TaskItem: View {
 }
 
 // Wire — same file, nothing to export
-let WiredTaskItem = wireView(
+let TaskItem = wireView(
   name: "TaskItem",
   queries: { props in
     ["task": ["path": "tasks", "id": props["taskId"] as? String ?? ""]]
   },
   actions: ["setStatus"],
-  view: TaskItem.init
+  view: TaskItemView.init
 )
 
-// Test
-// TaskItem(
+// Test — plain struct init, no environment, no store
+// TaskItemView(
 //   task: ["id": "tasks/task-1", "title": "Deploy", "status": "active"],
 //   setStatus: { _ in }
 // )
@@ -834,31 +920,42 @@ let WiredTaskItem = wireView(
 
 ### Compute properties
 
+Closure-based; safe to destructure in Swift:
+
 ```swift
 let TaskModel = TaskModel(
   schema: [ /* ... */ ],
   compute: [
-    // Basic getter
+    // Simple — receives the doc dictionary, returns a plain value
     "statusLabel": { doc in
       (doc["status"] as? String) == "active" ? "In Progress" : "Archived"
     },
-    // Dependent — pass a sibling document
-    "completionPercent": { doc, sprint in
-      let done  = doc["completedItems"]    as? Int ?? 0
-      let total = sprint["totalItems"] as? Int ?? 1
-      return Int((Double(done) / Double(total)) * 100)
+
+    // Dependent — returns a function that takes a sibling doc
+    "completionPercent": { doc in
+      { (sprint: [String: Any]) -> Int in
+        let done  = doc["completedItems"]    as? Int ?? 0
+        let total = sprint["totalItems"] as? Int ?? 1
+        return Int((Double(done) / Double(total)) * 100)
+      }
     },
   ]
 )
+
+// View reads plain computed values — destructure freely
+let statusLabel = task["statusLabel"] as? String ?? ""
 ```
 
 ### Multiple adapters
 
 ```swift
 let store = Store.createStore {
+  // 'default' — catches all paths not claimed below
   BackingStoreConfig(name: "default",  adapter: FirestoreAdapter(app: firebaseApp), models: [TaskModel])
-  BackingStoreConfig(name: "settings", adapter: UserDefaultsAdapter(), paths: ["settings/"])
-  BackingStoreConfig(name: "ui",       adapter: MemoryAdapter(),       paths: ["ui/"])
+  // 'settings' — all paths starting with 'settings/'
+  BackingStoreConfig(name: "settings", adapter: UserDefaultsAdapter())
+  // 'ui' — all paths starting with 'ui/'
+  BackingStoreConfig(name: "ui",       adapter: MemoryAdapter())
 }
 ```
 
@@ -873,11 +970,16 @@ store.history.log()
 ### Error alerts
 
 ```swift
-wireView(
+let ErrorBanner = wireView(
   name: "ErrorBanner",
-  queries: ["errors": ["path": "errors", "where": ["resolved": false]]],
+  queries: [
+    "errors": [
+      "path":  "errors",
+      "where": ["resolved": false],
+    ],
+  ],
   actions: ["dismissError"],
-  view: ErrorBanner.init
+  view: ErrorBannerView.init
 )
 ```
 
@@ -886,6 +988,8 @@ wireView(
 ```swift
 let TaskModel = TaskModel(
   versioning: [
+    // rollforward: called when a stored doc is older than the current schema
+    // rollback:    called when writing back to storage that expects an older schema
     VersionStep(
       rollforward: { doc in
         var d = doc
@@ -911,8 +1015,8 @@ let TaskModel = TaskModel(
 | Redux | Antifragile |
 |---|---|
 | `useSelector(selectTaskById(id))` inside component | `task` arrives as prop via `wireView` |
-| `dispatch(archiveTask(id))` inside component | `setStatus` arrives as prop via `wireView` |
-| `createSelector` memoised computation | `compute` getter on model — always fresh |
+| `dispatch(setStatus(id))` inside component | `setStatus` arrives as prop via `wireView` |
+| `createSelector` memoised computation | `compute` closure on model — always fresh |
 | Reducer (function, opaque to serialise) | Write descriptor (plain data, serialisable) |
 | `state.tasks.items[id].title` tree path | `{ path: 'tasks', id: taskId }` query |
 | `try { await dispatch(...).unwrap() }` | Fire-and-forget; failures land in `errors/` |
@@ -929,20 +1033,24 @@ let TaskModel = TaskModel(
 ### From Zustand
 
 ```ts
-// Zustand — before
+// Zustand — before (mutation logic inside a hook, imported in the component)
 const useTaskStore = create((set) => ({
   tasks: [],
   archive: (id) => set(state => ({
-    tasks: state.tasks.map(t => t.id === id ? { ...t, status: 'archived' } : t),
+    tasks: state.tasks.map(t =>
+      t.id === id ? { ...t, status: 'archived' } : t
+    ),
   })),
 }))
-const { tasks, archive } = useTaskStore()  // imported inside the component
+const { tasks, archive } = useTaskStore()
 
-// Antifragile — after
+// Antifragile — after (plain data descriptor; arrives as a prop)
 const setStatus = createMutate(store, {
-  write: ({ id, status }) => ({ path: 'tasks', id, fields: { status } }),
+  write: ({ id, status }) => ({
+    path: 'tasks', id, fields: { status },
+  }),
 })
-// Received as a prop via wireView — no store import in the component
+// setStatus received as a prop via wireView — no store import in the component
 ```
 
 ### From SwiftUI `@EnvironmentObject`
@@ -953,6 +1061,6 @@ const setStatus = createMutate(store, {
 // A change to tasks[task-2].status re-renders a view that only shows tasks[task-1].
 
 // Antifragile — after
-// WiredTaskItem for task-1 subscribes to tasks/task-1 only.
-// A write to tasks/task-2 does not reach it.
+// The TaskItem container subscribes to tasks/task-1 only.
+// A write to tasks/task-2 does not reach it — no unnecessary re-render.
 ```

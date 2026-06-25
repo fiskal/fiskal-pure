@@ -55,10 +55,11 @@ export function createStore(adapter: Adapter, options?: StoreOptions): StoreInst
   function enrich(path: string, doc: Doc): Doc {
     const model = models[path]
     if (!model?.compute) return doc
-    return Object.defineProperties(
-      Object.assign(Object.create(null), doc),
-      Object.getOwnPropertyDescriptors(model.compute),
-    ) as Doc
+    const enriched: Record<string, unknown> = { ...doc }
+    for (const [key, fn] of Object.entries(model.compute)) {
+      enriched[key] = fn(doc as Record<string, unknown>)
+    }
+    return enriched as Doc
   }
 
   // Build the store instance with a placeholder mutates map that gets populated below.

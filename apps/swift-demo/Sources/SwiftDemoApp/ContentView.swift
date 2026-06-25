@@ -1,34 +1,25 @@
-// ---------------------------------------------------------------------------
-// ContentView.swift — pure views + wired views for the task demo
-// ---------------------------------------------------------------------------
-//
-// Pure views: TaskItem, TaskList, AddTask
-//   - Receive only value-type arguments (structs + closures).
-//   - Zero imports from FiskalPure.
-//   - Testable with plain struct init; no environment, no store.
-//
-// Wired views: WiredTaskItem, WiredTaskList, WiredContentView
-//   - Read from DemoStore via @EnvironmentObject.
-//   - Pass data and closures into the pure views.
-//   - All store coupling lives here, not in the pure views.
-
 import SwiftUI
+import Antifragile
 
 // ---------------------------------------------------------------------------
-// Pure views
+// Pure views — no store, no @EnvironmentObject. Tested with plain init.
 // ---------------------------------------------------------------------------
 
-/// A single task row. No store knowledge. Testable with plain init.
 struct TaskItem: View {
-    let task: TaskDoc
-    let onArchive: (String) -> Void
+    let task: Task
+    let archiveTask: ([String: Any]) -> Void
 
     var body: some View {
         HStack {
-            Text(task.title)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(task.title)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(task.createdAtDisplay)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Button("Archive") {
-                onArchive(task.id)
+                archiveTask(["id": task.id])
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -37,29 +28,27 @@ struct TaskItem: View {
     }
 }
 
-/// A list of tasks. Pure function of its arguments.
-struct TaskList: View {
-    let tasks: [TaskDoc]
-    let onArchive: (String) -> Void
+// TaskItem injected as a prop — wireView provides the wired version at runtime.
+struct TaskList<Item: View>: View {
+    let taskIds: [TaskId]
+    var TaskItem: (String) -> Item
 
     var body: some View {
-        if tasks.isEmpty {
+        if taskIds.isEmpty {
             Text("No active tasks. Add one below.")
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            List(tasks) { task in
-                TaskItem(task: task, onArchive: onArchive)
+            List(taskIds, id: \.self) { id in
+                TaskItem(id)
             }
             .listStyle(.plain)
         }
     }
 }
 
-/// Add-task form. Stateful for the text field only; all writes go through the callback.
 struct AddTask: View {
-    let onAdd: (String) -> Void
-
+    let addTask: ([String: Any]) -> Void
     @State private var title = ""
 
     var body: some View {
@@ -67,9 +56,9 @@ struct AddTask: View {
             TextField("New task title", text: $title)
                 .textFieldStyle(.roundedBorder)
             Button("Add") {
-                let trimmed = title.trimmingCharacters(in: .whitespaces)
-                guard !trimmed.isEmpty else { return }
-                onAdd(trimmed)
+                let t = title.trimmingCharacters(in: .whitespaces)
+                guard !t.isEmpty else { return }
+                addTask(["id": UUID().uuidString, "title": t])
                 title = ""
             }
             .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -79,51 +68,82 @@ struct AddTask: View {
 }
 
 // ---------------------------------------------------------------------------
-// Wired views — connect pure views to DemoStore
+// wireView — all connection logic lives here, outside the pure view definitions.
+// Pure views above have zero imports from Antifragile.
 // ---------------------------------------------------------------------------
-//
-// All @EnvironmentObject reads happen here. The pure views above never see
-// the store. This is the wireView pattern in vanilla SwiftUI.
 
-/// Wired version of TaskItem — reads from DemoStore for a specific task id.
-/// (Included for symmetry with the TS wireView pattern; in practice WiredTaskList
-/// renders all active tasks without needing per-item wiring.)
+// Wires TaskItem: fetches one task by id from the store, exposes archiveTask action.
 struct WiredTaskItem: View {
     let taskId: String
-    @EnvironmentObject private var demoStore: DemoStore
 
     var body: some View {
-        if let task = demoStore.activeTasks.first(where: { $0.id == taskId }) {
-            TaskItem(task: task) { id in
-                demoStore.archiveTask(id: id)
-            }
+        wireView(
+            name: "TaskItem",
+            queries: ["task": ["path": "tasks", "id": taskId]],
+            actions: ["archiveTask"]
+        ) { (props: WireProps) -> AnyView in
+            guard let doc = (props.data["task"] as? [[String: Any]])?.first,
+                  let task = Task.from(doc)
+            else { return AnyView(EmptyView()) }
+            return AnyView(
+                SwiftDemoApp.TaskItem(
+                    task: task,
+                    archiveTask: { payload in
+                        Task { try? await props.actions["archiveTask"]?(payload) }
+                    }
+                )
+            )
         }
     }
 }
 
-/// Wired version of TaskList — reads all active tasks from DemoStore.
+// Wires TaskList: fetches all active task ids.
+// WiredTaskItem is injected as the TaskItem prop.
 struct WiredTaskList: View {
-    @EnvironmentObject private var demoStore: DemoStore
-
     var body: some View {
-        TaskList(tasks: demoStore.activeTasks) { id in
-            demoStore.archiveTask(id: id)
+        wireView(
+            name: "TaskList",
+            queries: ["taskIds": ["path": "tasks", "where": [["field": "status", "op": "==", "value": "active"]]]],
+            actions: []
+        ) { (props: WireProps) -> AnyView in
+            let ids = (props.data["taskIds"] as? [[String: Any]])?.compactMap { $0["id"] as? String } ?? []
+            return AnyView(
+                SwiftDemoApp.TaskList(taskIds: ids) { id in
+                    WiredTaskItem(taskId: id)
+                }
+            )
         }
     }
 }
 
-/// Root content view — assembles the wired task list and add-task form.
-struct WiredContentView: View {
-    @EnvironmentObject private var demoStore: DemoStore
+// Wires AddTask: exposes addTask action.
+struct WiredAddTask: View {
+    var body: some View {
+        wireView(
+            name: "AddTask",
+            queries: [:],
+            actions: ["addTask"]
+        ) { (props: WireProps) -> AnyView in
+            AnyView(
+                AddTask { payload in
+                    Task { try? await props.actions["addTask"]?(payload) }
+                }
+            )
+        }
+    }
+}
 
+// ---------------------------------------------------------------------------
+// App root
+// ---------------------------------------------------------------------------
+
+struct ContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("fiskal-pure — Task List Demo")
+            Text("fiskal-antifragile — Task Demo")
                 .font(.headline)
             WiredTaskList()
-            AddTask { title in
-                demoStore.addTask(title: title)
-            }
+            WiredAddTask()
         }
         .padding()
         .frame(maxWidth: 480, maxHeight: .infinity, alignment: .top)
@@ -131,39 +151,34 @@ struct WiredContentView: View {
 }
 
 // ---------------------------------------------------------------------------
-// Previews
+// Previews — pure views with plain props, no store required
 // ---------------------------------------------------------------------------
 
 #Preview("TaskItem") {
     TaskItem(
-        task: TaskDoc(id: "1", title: "Write tests", status: "active", createdAt: "2026-06-23T10:00:00Z"),
-        onArchive: { _ in }
+        task: Task(id: "1", title: "Write tests", status: "active",
+                   createdAt: Date().timeIntervalSince1970 - 86_400),
+        archiveTask: { _ in }
     )
     .padding()
 }
 
 #Preview("TaskList — populated") {
     TaskList(
-        tasks: [
-            TaskDoc(id: "1", title: "Write tests", status: "active", createdAt: "2026-06-23T10:00:00Z"),
-            TaskDoc(id: "2", title: "Ship it", status: "active", createdAt: "2026-06-23T10:01:00Z"),
-        ],
-        onArchive: { _ in }
+        taskIds: ["1", "2"],
+        TaskItem: { id in
+            Text("Task \(id)").padding(.vertical, 4)
+        }
     )
     .padding()
 }
 
 #Preview("TaskList — empty") {
-    TaskList(tasks: [], onArchive: { _ in })
+    TaskList(taskIds: [], TaskItem: { id in Text(id) })
         .padding()
 }
 
 #Preview("AddTask") {
-    AddTask(onAdd: { _ in })
+    AddTask(addTask: { _ in })
         .padding()
-}
-
-#Preview("WiredContentView") {
-    WiredContentView()
-        .environmentObject(DemoStore())
 }

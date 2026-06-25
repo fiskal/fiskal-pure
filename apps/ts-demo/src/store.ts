@@ -3,22 +3,14 @@ import { MemoryAdapter } from '@fiskal/antifragile/adapters/memory'
 import type { Model } from '@fiskal/antifragile'
 
 // ---------------------------------------------------------------------------
-// Model — JSON schema + compute formatters
+// Model — JSON schema + closure-based compute
 // ---------------------------------------------------------------------------
 
-type TaskDoc = { createdAt: number; status: string }
-
 const taskCompute: Model['compute'] = {
-  get createdAtDisplay() {
-    const self = this as unknown as TaskDoc
-    return new Date(self.createdAt).toLocaleDateString(undefined, {
-      month: 'short', day: 'numeric', year: 'numeric',
-    })
-  },
-  get statusLabel() {
-    const self = this as unknown as TaskDoc
-    return self.status === 'active' ? 'In Progress' : 'Archived'
-  },
+  statusLabel:      (doc) => doc['status'] === 'active' ? 'In Progress' : 'Archived',
+  createdAtDisplay: (doc) => new Date(doc['createdAt'] as number).toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric', year: 'numeric',
+  }),
 }
 
 // ---------------------------------------------------------------------------
