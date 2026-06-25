@@ -22,7 +22,7 @@
 
 import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { filterDocs, projectDoc } from './cache.js'
-import type { Doc, Query, StoreInstance } from './types.js'
+import { Loadable, type Doc, type Query, type StoreInstance } from './types.js'
 
 type ReadResult = undefined | null | Doc | Doc[]
 
@@ -160,4 +160,30 @@ export function useRead(
   )
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+// ---------------------------------------------------------------------------
+// Loadable bridge (ADR-0013)
+// ---------------------------------------------------------------------------
+
+// Converts the wire encoding (undefined | null | Doc | Doc[]) into the explicit
+// tagged Loadable form. A single-doc query distinguishes loading/missing/loaded;
+// a collection query has no `missing` state — an absent collection is `loading`
+// and a present-but-empty collection is loaded([]).
+export function toLoadable(query: Query, result: ReadResult): Loadable<Doc | Doc[]> {
+  if (result === undefined) return Loadable.loading()
+  if (query.id !== undefined) {
+    return result === null ? Loadable.missing() : Loadable.loaded(result as Doc)
+  }
+  return Loadable.loaded((result ?? []) as Doc[])
+}
+
+// Explicit-state variant of useRead for views that render distinct loading /
+// not-found / loaded UI. The subscription lifecycle is identical — this only
+// changes the returned shape.
+export function useReadLoadable(
+  store: StoreInstance,
+  query: Query,
+): Loadable<Doc | Doc[]> {
+  return toLoadable(query, useRead(store, query))
 }

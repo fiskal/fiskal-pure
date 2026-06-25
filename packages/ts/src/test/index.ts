@@ -227,3 +227,5 @@ export {
 } from '../types.js'
 
 export { snapshot as cacheSnapshot, restore as cacheRestore } from '../cache.js'
+
+export { createAsyncMemoryAdapter, type AsyncMemoryAdapter } from './asyncMemoryAdapter.js'

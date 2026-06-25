@@ -67,34 +67,81 @@ public struct QueryWrapper<T>: DynamicProperty {
 
     // MARK: - Descriptor → Query
     private func buildQuery(from dict: [String: Any]) -> Query {
-        let path = dict["path"] as? String ?? ""
-        let id   = dict["id"]   as? String
-        let fields = dict["fields"] as? [String]
+        resolveQuery(from: dict)
+    }
+}
 
-        let whereClauses: [WhereClause] = (dict["where"] as? [[String: Any]] ?? []).compactMap { w in
-            guard
-                let field = w["field"] as? String,
-                let opStr = w["op"]    as? String,
-                let op    = WhereClause.Operator(rawValue: opStr),
-                let value = w["value"] as? AnyHashable
-            else { return nil }
-            return WhereClause(field: field, op: op, value: value)
+// MARK: - Shared descriptor → Query (used by both wrappers)
+
+func resolveQuery(from dict: [String: Any]) -> Query {
+    let path = dict["path"] as? String ?? ""
+    let id   = dict["id"]   as? String
+    let fields = dict["fields"] as? [String]
+
+    let whereClauses: [WhereClause] = (dict["where"] as? [[String: Any]] ?? []).compactMap { w in
+        guard
+            let field = w["field"] as? String,
+            let opStr = w["op"]    as? String,
+            let op    = WhereClause.Operator(rawValue: opStr),
+            let value = w["value"] as? AnyHashable
+        else { return nil }
+        return WhereClause(field: field, op: op, value: value)
+    }
+
+    let orderByClauses: [OrderByClause] = (dict["orderBy"] as? [[String: Any]] ?? []).compactMap { o in
+        guard let field = o["field"] as? String else { return nil }
+        let dir: OrderByClause.Direction =
+            (o["direction"] as? String) == "descending" ? .descending : .ascending
+        return OrderByClause(field: field, direction: dir)
+    }
+
+    return Query(path: path, id: id, where: whereClauses, orderBy: orderByClauses, fields: fields)
+}
+
+// MARK: - LoadableQuery — explicit three-state read (ADR-0013)
+
+/// Like `@Query`, but `wrappedValue` is `Loadable<T>` so a view can render
+/// distinct loading / missing / loaded UI. The subscription lifecycle is
+/// identical; only the exposed shape differs. Additive — `@Query` is unchanged.
+@propertyWrapper
+public struct LoadableQuery<T>: DynamicProperty {
+
+    @Environment(\.store) private var store: Store?
+
+    @State private var value: T?
+    @State private var hasEmitted: Bool = false
+    @State private var task: Task<Void, Never>?
+    @State private var lastQuery: Query?
+
+    private let descriptor: [String: Any]
+
+    public init(_ descriptor: [String: Any]) {
+        self.descriptor = descriptor
+    }
+
+    public var wrappedValue: Loadable<T> {
+        guard hasEmitted else { return .loading }
+        if let value { return .loaded(value) }
+        return .missing   // a collection query always emits a (possibly empty) array
+    }
+
+    public func update() {
+        guard let store else { return }
+        let query = resolveQuery(from: descriptor)
+        if query == lastQuery, task != nil { return }
+        task?.cancel()
+        lastQuery = query
+        task = Task { @MainActor in
+            for await docs in store.cache.subscribe(query: query) {
+                guard !Task.isCancelled else { break }
+                if T.self == [Doc].self {
+                    value = docs as? T
+                } else if T.self == Doc.self {
+                    value = docs.first as? T
+                }
+                hasEmitted = true
+            }
         }
-
-        let orderByClauses: [OrderByClause] = (dict["orderBy"] as? [[String: Any]] ?? []).compactMap { o in
-            guard let field = o["field"] as? String else { return nil }
-            let dir: OrderByClause.Direction =
-                (o["direction"] as? String) == "descending" ? .descending : .ascending
-            return OrderByClause(field: field, direction: dir)
-        }
-
-        return Query(
-            path: path,
-            id: id,
-            where: whereClauses,
-            orderBy: orderByClauses,
-            fields: fields
-        )
     }
 }
 
@@ -105,3 +152,9 @@ public typealias QueryList = QueryWrapper<[Doc]>
 
 /// Live query that emits a single document.
 public typealias QueryDoc = QueryWrapper<Doc>
+
+/// Live query exposing an explicit `Loadable` list.
+public typealias LoadableList = LoadableQuery<[Doc]>
+
+/// Live query exposing an explicit `Loadable` document.
+public typealias LoadableDoc = LoadableQuery<Doc>

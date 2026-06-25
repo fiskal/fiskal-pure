@@ -8,6 +8,30 @@ import Foundation
 /// An untyped document: field name → value.
 public typealias Doc = [String: Any]
 
+// MARK: - Loadable (ADR-0013)
+
+/// The canonical three-state read model, shared with the TS `Loadable<T>`.
+///
+///   .loading  — the query has not yet been answered by the adapter
+///   .missing  — a single-doc query whose id is absent
+///   .loaded   — a value (for a collection query, `.loaded([])` is loaded-but-empty)
+///
+/// Swift has no `undefined`, so this enum is the source of truth here; TS encodes
+/// the same three states as `undefined | null | T` at the prop boundary.
+public enum Loadable<T> {
+    case loading
+    case missing
+    case loaded(T)
+
+    /// The value if loaded, else nil — convenience for views that don't branch.
+    public var value: T? {
+        if case let .loaded(v) = self { return v }
+        return nil
+    }
+
+    public var isLoading: Bool { if case .loading = self { return true }; return false }
+}
+
 // MARK: - Query
 
 /// Describes a live read from the store.

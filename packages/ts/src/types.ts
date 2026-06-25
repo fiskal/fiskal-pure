@@ -5,6 +5,30 @@
 /** Any document stored in the cache. Must have an `id` string. */
 export type Doc = { id: string } & Record<string, unknown>
 
+// ---------------------------------------------------------------------------
+// Loadable — the canonical three-state read contract (ADR-0013)
+// ---------------------------------------------------------------------------
+//
+// loading  — the query has not yet been answered by the adapter
+// missing  — a single-doc query whose id is absent (never occurs for collections)
+// loaded   — a Doc, or a Doc[] (which may legitimately be empty)
+//
+// On TS the default prop encoding stays `undefined | null | T` for zero-ceremony
+// pure views (undefined=loading, null=missing, value=loaded). `Loadable<T>` is
+// the explicit tagged form for views/tests that branch on the loading state.
+// Swift uses `enum Loadable<T>` directly (it has no `undefined`).
+
+export type Loadable<T> =
+  | { status: 'loading' }
+  | { status: 'missing' }
+  | { status: 'loaded'; data: T }
+
+export const Loadable = {
+  loading: <T>(): Loadable<T> => ({ status: 'loading' }),
+  missing: <T>(): Loadable<T> => ({ status: 'missing' }),
+  loaded: <T>(data: T): Loadable<T> => ({ status: 'loaded', data }),
+} as const
+
 /** A query against a collection or a single document. */
 export interface Query {
   path: string
