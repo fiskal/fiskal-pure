@@ -1,16 +1,13 @@
 # Antifragile
-### Views without data. Data tracks everything.
+### Hooks break apps.
 
-Views display. That is all they do. No hooks, no state, no logic — nothing that can break.
+Antifragile is an offline-first state library without logic in views. Views become simple displays — no hooks, no state, nothing that can fail. Every write is logged as a named, serializable record. When something breaks, the full trace is already there: every mutation in order, all the data needed to fix the bug. Each failure is a one-look fix. The app gets stronger with every break.
 
-Every mutation is a named, serializable change record. The full log is always there. When something breaks, you have the exact sequence that caused it — not a stack trace, not a guess — and an AI can replay it, diagnose it, and fix it.
-
-Mutations are injected into components as plain props. Testing a component means passing a function. No providers, no mocks, no store setup.
-
-- **Views that cannot break** — hooks are where view bugs live; remove hooks from views and views become inert
-- **Every change is a record** — serializable write descriptors, replayable from any point in the log
-- **AI-debuggable by design** — failures ship their own reproduction case: the log + changeset
-- **Mutations as props** — actions are injected, not imported; testing is calling a function
+- **No logic in views** — hooks are where app bugs live; remove them and views become inert displays
+- **Offline-first** — writes go local first; sync is a separate, optional concern
+- **Every write logged** — serializable change records, replayable from any point
+- **Full trace on failure** — all the data to fix the bug is already in the log
+- **Stronger with each break** — failures are self-documenting; fixes get faster over time
 - **Universal backing store** — Firestore, MongoDB, CloudKit, SQLite, GunJS, Keychain, NSUserDefaults
 
 ---

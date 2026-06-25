@@ -22,13 +22,11 @@ State management for React (TypeScript) and SwiftUI (Swift) where the view layer
 
 ## 1. What is Antifragile
 
-**Views without data. Data tracks everything.**
+**Hooks break apps.**
 
-Views display. They cannot break because they have nothing to break — no hooks, no state, no logic. A view is a function that receives data and returns markup. If something looks wrong on screen, the problem is in the data layer, not the view.
+Antifragile is an offline-first state library without logic in views. Views become simple displays — no hooks, no state, nothing that can fail. Every write is logged as a named, serializable record. When something breaks, the full trace is already there: every mutation in order, all the data needed to understand and fix the bug. Each failure is a one-look fix. The app gets stronger with every break.
 
-Data tracks every change as a named, serializable write descriptor. The complete log is always there. When something breaks, you have the exact sequence that caused it — every mutation, in order — and an AI can replay it, diagnose the root cause, and fix it without a separate reproduction case.
-
-Mutations are injected into components as plain props. Testing a component means passing a function. No provider, no mock store, no setup.
+Views receive data as props and return markup. If something looks wrong on screen, the problem is in the data layer — which is logged, serializable, and fully replayable. Mutations are injected into components as plain props. Testing a component means passing a function. No provider, no mock store, no setup.
 
 ### The minimum
 

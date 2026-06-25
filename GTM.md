@@ -1,16 +1,16 @@
 # fiskal-pure
 
 ## Tagline
-Views without data. Data tracks everything.
+Hooks break apps.
 
 ---
 
 ## What It Does
-Views display. They cannot break because they have no logic — no hooks, no state, nothing
-that can fail. Data tracks every change as a named, serializable write descriptor. When
-something breaks, the full changeset is already there: every mutation in order, shippable to
-a server, replayable by an AI. Mutations are injected into components as props so testing
-a component means passing a function — no provider, no mock store.
+Antifragile is an offline-first state library without logic in views. Views become simple
+displays — no hooks, no state, nothing that can fail. Every write is a named, serializable
+log entry. When something breaks, the full trace is already there: every mutation in order,
+all the data needed to fix the bug. Each failure is a one-look fix. The app gets stronger
+with every break.
 
 ---
 
@@ -29,12 +29,12 @@ SwiftUI integration uses Combine and standard `@Observable` under the covers —
 ---
 
 ## Why
-Hooks are where view bugs live. Every `useState`, `useEffect`, and `useContext` is logic
-inside a view. Logic in a view can break, and when it does there is no log and no changeset
-— just a stack trace. Antifragile removes hooks from views entirely. A view is a function
-that receives data and returns markup; it cannot have a bug. Every write goes through a
-named data descriptor so the complete mutation log is always available — an AI can replay
-the exact sequence that caused the failure and fix it without a repro case.
+Hooks break apps. `useState`, `useEffect`, `useContext` — each one is logic inside a view,
+and logic in a view can fail with nothing left behind. Antifragile removes hooks from views
+entirely. Views are offline-first displays: they receive data as props and return markup.
+Every write goes to the local log first. When something breaks, the full trace is already
+there — all the data to fix the bug is in the state and log. Each fix takes one look.
+The app gets stronger with every failure.
 
 ---
 
