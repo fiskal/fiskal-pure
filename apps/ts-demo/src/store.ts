@@ -43,18 +43,20 @@ export const store = createStore(
     },
     mutates: {
       addTask: {
-        write: ({ id, title }: { id: string; title: string }) => ({
-          path: 'tasks',
-          id,
-          fields: { title, status: 'active', createdAt: Date.now() },
-        }),
+        write: (payload) => {
+          const { id, title } = payload as { id: string; title: string }
+          return {
+            path: 'tasks',
+            id,
+            fields: { title, status: 'active', createdAt: Date.now() },
+          }
+        },
       },
       archiveTask: {
-        write: ({ id }: { id: string }) => ({
-          path: 'tasks',
-          id,
-          fields: { status: 'archived' },
-        }),
+        write: (payload) => {
+          const { id } = payload as { id: string }
+          return { path: 'tasks', id, fields: { status: 'archived' } }
+        },
       },
     },
   },

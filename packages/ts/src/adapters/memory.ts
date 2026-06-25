@@ -23,7 +23,7 @@ interface Subscriber {
   callback: OnChangeCallback
 }
 
-function docsForQuery(cache: CacheState, query: Query): Doc[] {
+function dataForQuery(cache: CacheState, query: Query): Doc[] {
   if (query.id) {
     const doc = cache.get(query.path)?.get(query.id)
     return doc ? [doc] : []
@@ -45,7 +45,7 @@ export function MemoryAdapter(initial?: Record<string, Doc[]>): Adapter {
 
   function notify(): void {
     for (const sub of subscribers) {
-      sub.callback(docsForQuery(cache, sub.query))
+      sub.callback(dataForQuery(cache, sub.query))
     }
   }
 
@@ -53,7 +53,7 @@ export function MemoryAdapter(initial?: Record<string, Doc[]>): Adapter {
     const sub: Subscriber = { query, callback: onChange }
     subscribers.add(sub)
     // Deliver current state synchronously
-    onChange(docsForQuery(cache, query))
+    onChange(dataForQuery(cache, query))
     return () => {
       subscribers.delete(sub)
     }
@@ -85,7 +85,7 @@ export function createMemoryStore(): MemoryStore {
 
   function notify(): void {
     for (const sub of subscribers) {
-      sub.callback(docsForQuery(cache, sub.query))
+      sub.callback(dataForQuery(cache, sub.query))
     }
   }
 
@@ -93,7 +93,7 @@ export function createMemoryStore(): MemoryStore {
     subscribe(query: Query, onChange: OnChangeCallback): Unsubscribe {
       const sub: Subscriber = { query, callback: onChange }
       subscribers.add(sub)
-      onChange(docsForQuery(cache, query))
+      onChange(dataForQuery(cache, query))
       return () => { subscribers.delete(sub) }
     },
 

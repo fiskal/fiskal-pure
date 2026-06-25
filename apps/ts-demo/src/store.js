@@ -36,18 +36,20 @@ export const store = createStore(MemoryAdapter({
     },
     mutates: {
         addTask: {
-            write: ({ id, title }) => ({
-                path: 'tasks',
-                id,
-                fields: { title, status: 'active', createdAt: Date.now() },
-            }),
+            write: (payload) => {
+                const { id, title } = payload;
+                return {
+                    path: 'tasks',
+                    id,
+                    fields: { title, status: 'active', createdAt: Date.now() },
+                };
+            },
         },
         archiveTask: {
-            write: ({ id }) => ({
-                path: 'tasks',
-                id,
-                fields: { status: 'archived' },
-            }),
+            write: (payload) => {
+                const { id } = payload;
+                return { path: 'tasks', id, fields: { status: 'archived' } };
+            },
         },
     },
 });

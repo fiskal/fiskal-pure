@@ -148,11 +148,12 @@ function resolvePlainFields(fields: FieldMap): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(fields)) {
     if (isAtomicOp(value)) {
-      switch (value.__op) {
+      const [name, opValue] = value
+      switch (name) {
         case '::arrayUnion':
           // Gun doesn't have arrays in the traditional sense — store as object
           // with index keys. Here we convert the additions to a plain object.
-          out[key] = value.values
+          out[key] = Array.isArray(opValue) ? opValue : [opValue]
           break
         case '::arrayRemove':
           // Removal cannot be expressed without reading first — emit null to
@@ -167,8 +168,8 @@ function resolvePlainFields(fields: FieldMap): Record<string, unknown> {
           // Callers should use read-then-write for atomic counters in Gun.
           // Warn loudly: the delta is written as an absolute value, not added.
           // eslint-disable-next-line no-console
-          console.warn(`GunAdapter: ::increment on '${key}' is not atomic in Gun; writing the delta (${value.n}) as an absolute value. Use read-then-write instead.`)
-          out[key] = value.n
+          console.warn(`GunAdapter: ::increment on '${key}' is not atomic in Gun; writing the delta (${String(opValue)}) as an absolute value. Use read-then-write instead.`)
+          out[key] = opValue
           break
         case '::serverTimestamp':
           out[key] = new Date().toISOString()

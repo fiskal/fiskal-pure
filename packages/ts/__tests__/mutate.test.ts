@@ -172,12 +172,10 @@ describe('transaction mutate', () => {
     const store = makeStore()
     seed(store, { counters: [{ id: 'c1', value: 0 }] })
 
-    const { increment } = await import('../src/types.js')
-
     const doubleIncrement = createMutate<Record<string, never>>(store, {
       write: [
-        () => ({ path: 'counters', id: 'c1', fields: { value: increment(10) }, merge: true }),
-        () => ({ path: 'counters', id: 'c1', fields: { value: increment(5) }, merge: true }),
+        () => ({ path: 'counters', id: 'c1', fields: { value: ['::increment', 10] }, merge: true }),
+        () => ({ path: 'counters', id: 'c1', fields: { value: ['::increment', 5] }, merge: true }),
       ],
     })
 

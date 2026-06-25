@@ -26,20 +26,23 @@ import {
 // ---------------------------------------------------------------------------
 
 function resolveField(current: unknown, op: AtomicOp): unknown {
-  switch (op.__op) {
+  const [name, value] = op
+  switch (name) {
     case '::arrayUnion': {
       const arr = Array.isArray(current) ? current : []
-      const additions = op.values.filter(v => !arr.includes(v))
+      const items = Array.isArray(value) ? value : [value]
+      const additions = items.filter(v => !arr.includes(v))
       return [...arr, ...additions]
     }
     case '::arrayRemove': {
       const arr = Array.isArray(current) ? current : []
-      const removal = new Set(op.values)
+      const items = Array.isArray(value) ? value : [value]
+      const removal = new Set(items)
       return arr.filter((v: unknown) => !removal.has(v))
     }
     case '::increment': {
       const base = typeof current === 'number' ? current : 0
-      return base + op.n
+      return base + (typeof value === 'number' ? value : 0)
     }
     case '::serverTimestamp':
       return new Date().toISOString()

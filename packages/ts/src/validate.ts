@@ -84,7 +84,7 @@ function validateObject(
       if (typeof key !== 'string') continue
       // A field set to an atomic ::delete sentinel counts as removal, not present.
       const v = fields[key]
-      const isDeleteOp = isAtomicOp(v) && (v as { __op: string }).__op === '::delete'
+      const isDeleteOp = isAtomicOp(v) && v[0] === '::delete'
       if (!(key in fields) || v === undefined || isDeleteOp) {
         return fail(`${pathLabel ? pathLabel + '.' : ''}${key}: required field missing`)
       }

@@ -39,13 +39,14 @@ const loadFirestore = async (): Promise<FirestoreModule> => {
 
 const translateValue = (v: unknown, fs: FirestoreModule): unknown => {
   if (!isAtomicOp(v)) return v;
-  const op = v as AtomicOp;
-  switch (op.__op) {
+  const [name, value] = v;
+  const list = Array.isArray(value) ? value : [value];
+  switch (name) {
     case '::delete': return fs.deleteField();
     case '::serverTimestamp': return fs.serverTimestamp();
-    case '::increment': return fs.increment(op.n);
-    case '::arrayUnion': return fs.arrayUnion(...op.values);
-    case '::arrayRemove': return fs.arrayRemove(...op.values);
+    case '::increment': return fs.increment(value as number);
+    case '::arrayUnion': return fs.arrayUnion(...list);
+    case '::arrayRemove': return fs.arrayRemove(...list);
     default: return v;
   }
 };

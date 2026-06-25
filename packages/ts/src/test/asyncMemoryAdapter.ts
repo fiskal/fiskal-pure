@@ -65,7 +65,7 @@ export function createAsyncMemoryAdapter(
   let nextId = 1
   let failNext: Error | null = null
 
-  function docsFor(query: Query): Doc[] {
+  function dataFor(query: Query): Doc[] {
     if (query.id) {
       const doc = cache.get(query.path)?.get(query.id)
       return doc ? [doc] : []
@@ -92,7 +92,7 @@ export function createAsyncMemoryAdapter(
     // over-fire to unrelated collections).
     for (const sub of subs.values()) {
       if (!touchedPaths.has(sub.query.path)) continue
-      const docs = docsFor(sub.query)
+      const docs = dataFor(sub.query)
       schedule(() => {
         if (subs.has(sub.id)) sub.cb(docs)
       })
@@ -103,7 +103,7 @@ export function createAsyncMemoryAdapter(
     const id = nextId++
     subs.set(id, { id, query, cb: onChange })
     // Defer the initial delivery — the loading state is observable until flush.
-    const snapshot = docsFor(query)
+    const snapshot = dataFor(query)
     schedule(() => {
       if (subs.has(id)) onChange(snapshot)
     })
@@ -139,7 +139,7 @@ export function createAsyncMemoryAdapter(
       return n
     },
     authoritative(query: Query) {
-      return docsFor(query)
+      return dataFor(query)
     },
   }
 }

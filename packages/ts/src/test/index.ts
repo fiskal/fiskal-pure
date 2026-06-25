@@ -218,14 +218,6 @@ function assertDeepEqual(a: unknown, b: unknown, path = ''): void {
 // Re-export commonly needed primitives for test files
 // ---------------------------------------------------------------------------
 
-export {
-  arrayUnion,
-  arrayRemove,
-  increment,
-  serverTimestamp,
-  deleteField,
-} from '../types.js'
-
 export { snapshot as cacheSnapshot, restore as cacheRestore } from '../cache.js'
 
 export { createAsyncMemoryAdapter, type AsyncMemoryAdapter } from './asyncMemoryAdapter.js'

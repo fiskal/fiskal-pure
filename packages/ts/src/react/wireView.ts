@@ -8,10 +8,16 @@
 //   2. wireView called AFTER the component, outside its file.
 //   3. Registered under `name` so other wired components can inject it by
 //      prop name automatically.
+//
+// Loading model (ADR-0013): wireView owns the subscription AND the loading
+// state. While any query is still loading (or a single-item query is missing),
+// the container renders nothing and injects no props — so the wrapped view only
+// ever receives LOADED data and never sees null/undefined. A view that needs a
+// custom loading/not-found UI reads the explicit Loadable via useRead directly.
 
 import { createElement, useEffect, useRef, useState } from 'react'
 import type { ComponentType, ReactElement } from 'react'
-import type { Doc, MutateFn, Query, StoreInstance } from '../types.js'
+import { Loadable, type Doc, type MutateFn, type Query, type StoreInstance } from '../types.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,6 +32,7 @@ type QuerySpec = {
 
 type QueryMap = Record<string, QuerySpec>
 type QueryFn<P> = (props: P) => QueryMap
+type ReadValue = Loadable<Doc | Doc[]>
 
 // Module-scope shared noop so the missing-action prop is referentially stable
 // across renders (preserves React.memo / useCallback dep stability).
@@ -67,6 +74,30 @@ export function createWireView(
     return { ...extras, path }
   }
 
+  // Read the current cache value for a spec as an explicit Loadable.
+  function readInitial(spec: QuerySpec): ReadValue {
+    const q = specToQuery(spec)
+    const col = store.getCache().get(q.path)
+    if (q.id !== undefined) {
+      if (col === undefined) return Loadable.loading()
+      const item = col.get(q.id)
+      return item ? Loadable.loaded(store.enrich(q.path, item)) : Loadable.missing()
+    }
+    if (col === undefined) return Loadable.loading()
+    return Loadable.loaded(Array.from(col.values()).map(d => store.enrich(q.path, d)))
+  }
+
+  // Shape an adapter delivery (always a list) into a Loadable for a spec.
+  function shapeDelivery(spec: QuerySpec, q: Query, raw: Doc[]): ReadValue {
+    const list = Array.isArray(raw) ? raw : raw == null ? [] : [raw as Doc]
+    const enriched = list.map(d => store.enrich(q.path, d))
+    if (spec.id !== undefined) {
+      const first = enriched[0]
+      return first ? Loadable.loaded(first) : Loadable.missing()
+    }
+    return Loadable.loaded(enriched)
+  }
+
   function wireView<P extends Record<string, unknown>>(
     name: string,
     queries: QueryMap | QueryFn<P>,
@@ -82,25 +113,10 @@ export function createWireView(
       const mapKey = JSON.stringify(resolvedMap)
       const mapKeyRef = useRef(mapKey)
 
-      // Shared 3-state read contract (see useRead.ts:5-9):
-      //   undefined — loading (collection not yet in cache)
-      //   null      — doc not found (single-doc query with id)
-      //   Doc/Doc[] — loaded (collection may be empty)
-      const [data, setData] = useState<Record<string, Doc | Doc[] | null | undefined>>(() => {
-        const initial: Record<string, Doc | Doc[] | null | undefined> = {}
+      const [data, setData] = useState<Record<string, ReadValue>>(() => {
+        const initial: Record<string, ReadValue> = {}
         for (const [key, spec] of Object.entries(resolvedMap)) {
-          const q = specToQuery(spec)
-          const cache = store.getCache()
-          const col = cache.get(q.path)
-          if (q.id !== undefined) {
-            // Distinguish loading (no collection) from not-found (collection
-            // present but id absent).
-            initial[key] =
-              col === undefined ? undefined : (col.get(q.id) ? store.enrich(q.path, col.get(q.id)!) : null)
-          } else {
-            initial[key] =
-              col === undefined ? undefined : Array.from(col.values()).map(d => store.enrich(q.path, d))
-          }
+          initial[key] = readInitial(spec)
         }
         return initial
       })
@@ -109,17 +125,9 @@ export function createWireView(
         mapKeyRef.current = mapKey
         const unsubs = Object.entries(resolvedMap).map(([key, spec]) => {
           const q = specToQuery(spec)
-          return store.adapter.subscribe(q, (docs: Doc[]) => {
-            // Defense-in-depth: the OnChangeCallback contract guarantees Doc[],
-            // but a custom/buggy adapter may emit null or a bare doc. Coerce to
-            // a list so enrich/map never throws out of the subscription.
-            const list = Array.isArray(docs) ? docs : docs == null ? [] : [docs as Doc]
-            const enriched = list.map(d => store.enrich(q.path, d))
-            const value: Doc | Doc[] | null =
-              spec.id !== undefined
-                ? enriched.length > 0 ? (enriched[0] ?? null) : null
-                : enriched
-            setData((prev: Record<string, Doc | Doc[] | null | undefined>) => ({ ...prev, [key]: value }))
+          return store.adapter.subscribe(q, (raw: Doc[]) => {
+            const value = shapeDelivery(spec, q, raw)
+            setData(prev => ({ ...prev, [key]: value }))
           })
         })
         return () => unsubs.forEach(u => u())
@@ -131,7 +139,18 @@ export function createWireView(
         {},
       )
 
-      // Inject registered wired components for any prop name that matches
+      // Loading gate: render nothing until every query is loaded. The wrapped
+      // view never receives a loading/missing sentinel — only loaded data.
+      const entries = Object.entries(data)
+      const allLoaded = entries.every(([, v]) => v.status === 'loaded')
+      if (!allLoaded) return null
+
+      const loadedData: Record<string, unknown> = {}
+      for (const [key, v] of entries) {
+        loadedData[key] = (v as { status: 'loaded'; data: unknown }).data
+      }
+
+      // Inject registered wired components for any prop name that matches.
       const injectedViews: Record<string, ComponentType<Record<string, unknown>>> = {}
       for (const [regName, regComp] of registry) {
         injectedViews[regName] = regComp
@@ -140,7 +159,7 @@ export function createWireView(
       const merged = {
         ...injectedViews,
         ...ownProps,
-        ...data,
+        ...loadedData,
         ...actions,
       } as unknown as P
 

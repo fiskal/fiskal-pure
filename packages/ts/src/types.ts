@@ -42,40 +42,33 @@ export interface Query {
 // These are replaced by adapter-native operations at write time.
 // ---------------------------------------------------------------------------
 
-export type AtomicOp =
-  | { __op: '::arrayUnion'; values: unknown[] }
-  | { __op: '::arrayRemove'; values: unknown[] }
-  | { __op: '::increment'; n: number }
-  | { __op: '::serverTimestamp' }
-  | { __op: '::delete' }
+// An atomic operation is a plain TUPLE — never a function call — so a write
+// stays pure, serialisable data that round-trips identically across platforms:
+//
+//   ['::increment', 1]
+//   ['::arrayUnion', ['done', 'urgent']]   // second element is the list of items
+//   ['::arrayRemove', ['done']]
+//   ['::serverTimestamp']                  // no value
+//   ['::delete']                           // no value
+//
+// The first element is the op name (carrying the `::` sentinel prefix); the
+// optional second element is the value the op needs.
+export type AtomicOpName =
+  | '::arrayUnion'
+  | '::arrayRemove'
+  | '::increment'
+  | '::serverTimestamp'
+  | '::delete'
 
-export function arrayUnion(...values: unknown[]): AtomicOp {
-  return { __op: '::arrayUnion', values }
-}
-
-export function arrayRemove(...values: unknown[]): AtomicOp {
-  return { __op: '::arrayRemove', values }
-}
-
-export function increment(n: number): AtomicOp {
-  return { __op: '::increment', n }
-}
-
-export function serverTimestamp(): AtomicOp {
-  return { __op: '::serverTimestamp' }
-}
-
-export function deleteField(): AtomicOp {
-  return { __op: '::delete' }
-}
+export type AtomicOp = readonly [AtomicOpName] | readonly [AtomicOpName, unknown]
 
 export function isAtomicOp(v: unknown): v is AtomicOp {
   return (
-    typeof v === 'object' &&
-    v !== null &&
-    '__op' in v &&
-    typeof (v as Record<string, unknown>)['__op'] === 'string' &&
-    String((v as Record<string, unknown>)['__op']).startsWith('::')
+    Array.isArray(v) &&
+    v.length >= 1 &&
+    v.length <= 2 &&
+    typeof v[0] === 'string' &&
+    (v[0] as string).startsWith('::')
   )
 }
 
