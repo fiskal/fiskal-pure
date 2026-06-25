@@ -55,7 +55,6 @@ export const store = createStore(
           path: 'tasks',
           id,
           fields: { title, status: 'active', createdAt: Date.now() },
-          merge: false as const,
         }),
       },
       archiveTask: {
@@ -63,7 +62,6 @@ export const store = createStore(
           path: 'tasks',
           id,
           fields: { status: 'archived' },
-          merge: true as const,
         }),
       },
     },

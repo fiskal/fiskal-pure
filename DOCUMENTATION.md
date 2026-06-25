@@ -192,7 +192,7 @@ export const store = createStore(
     },
     mutates: {
       archiveTask: {
-        write: ({ id }) => ({ path: 'tasks', id, fields: { status: 'archived' }, merge: true }),
+        write: ({ id }) => ({ path: 'tasks', id, fields: { status: 'archived' } }),
       },
     },
   },
@@ -485,9 +485,9 @@ const transfer = createMutate(store, {
 })
 ```
 
-**`merge: true` vs `merge: false`:**
-- `merge: true` — partial update. Only the fields listed are changed. Fields not mentioned survive. Use for all updates.
-- `merge: false` — full replacement. Drops all fields not in the write. Use only when creating a brand-new document.
+**`merge` — default is patch:**
+- Omit `merge` — patch (default). Only the listed fields change. Everything else on the doc survives.
+- `merge: false` — full replacement. Drops all fields not in the write. Use only when you need to guarantee no leftover fields on a fresh create.
 
 ---
 

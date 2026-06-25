@@ -56,7 +56,7 @@ const store = createStore(
       properties: { id: { type: 'string' }, title: { type: 'string' }, status: { type: 'string' } },
     } } },
     mutates: {
-      archiveTask: { write: ({ id }) => ({ path: 'tasks', id, fields: { status: 'archived' }, merge: true }) },
+      archiveTask: { write: ({ id }) => ({ path: 'tasks', id, fields: { status: 'archived' } }) },
     },
   },
 )

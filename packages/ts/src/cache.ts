@@ -117,8 +117,8 @@ export function applyWrite(cache: CacheState, desc: WriteDescriptor): CacheState
 
   let nextDoc: Doc
   if (desc.fields) {
-    // merge: true uses existing as the base (or empty doc if new); merge: false always starts fresh
-    const base: Doc = desc.merge ? (existing ?? { id: desc.id }) : { id: desc.id }
+    // Default is merge (patch existing). Only merge: false opts into full replacement.
+    const base: Doc = desc.merge !== false ? (existing ?? { id: desc.id }) : { id: desc.id }
     nextDoc = applyFields(base, desc.fields)
   } else {
     // No fields provided — no-op for existing, create empty doc otherwise
