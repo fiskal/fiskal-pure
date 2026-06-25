@@ -78,11 +78,23 @@ public struct Write: Sendable {
     public let id: String
     /// Plain values or AtomicOp boxed values.
     public let fields: [String: Any]
+    /// Patch by default (merge into existing doc); `false` replaces the whole doc.
+    public let merge: Bool
+    /// When `true`, removes the document entirely (fields are ignored).
+    public let delete: Bool
 
-    public init(path: String, id: String, fields: [String: Any]) {
+    public init(
+        path: String,
+        id: String,
+        fields: [String: Any],
+        merge: Bool = true,
+        delete: Bool = false
+    ) {
         self.path = path
         self.id = id
         self.fields = fields
+        self.merge = merge
+        self.delete = delete
     }
 }
 

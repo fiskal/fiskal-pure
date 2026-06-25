@@ -269,6 +269,8 @@ Feature: Hard offline-first scenarios
   Scenario: Undo a complex action that touched multiple entities
     # Redux blog: "time travel only worked on single-reducer state slices —
     # cross-slice undo required custom saga logic that we never finished"
+    # F-14: store.history.back() must actually REVERT the live cache, not just
+    # move a cursor. The CacheSnapshot/restore plumbing must be wired to history nav.
     Given item-1 is in sprint-A and item-2 is in sprint-B
     When the user fires "moveTask" moving item-1 from sprint-A to sprint-B
     Then the cache shows:
@@ -280,6 +282,27 @@ Feature: Hard offline-first scenarios
       | item-1.sprintId = "sprint-A"                     |
       | sprint-A.taskIds includes "item-1"               |
       | sprint-B.taskIds does not include "item-1"       |
+
+  @[SKIP]
+  Scenario: Time-travel back then forward restores the post-action cache (redo)
+    # F-14: history must support both directions, each re-applying the corresponding
+    # cache state. back() reverts; forward() re-applies. Cursor-only movement fails this.
+    Given the user fires "completeTask" on item-1 (status active → done)
+    And the cache shows item-1.status = "done"
+    When the user fires store.history.back()
+    Then the cache shows item-1.status = "active" (reverted)
+    When the user fires store.history.forward()
+    Then the cache shows item-1.status = "done" again (re-applied)
+    And subscribers on item-1 are notified on each navigation with the corresponding value
+
+  @[SKIP]
+  Scenario: store.history exists and is callable on both platforms
+    # F-14: the time-travel API is a documented core selling point but is currently
+    # absent on TS and non-functional on Swift. This is the cross-platform contract.
+    Given a freshly created store on either platform
+    When I call store.history.log()
+    Then it returns an array of confirmed write entries (it does not throw "history is undefined")
+    And store.history exposes back(), forward(), goto(index), and current
 
   # ---------------------------------------------------------------------------
   # 7. Pagination + local mutation
@@ -385,6 +408,27 @@ Feature: Hard offline-first scenarios
     When a wired component mounts
     Then the subscribe callback is called exactly once per state change
     And the unsubscribe is called once on final unmount
+
+  @[SKIP] @[SWIFT]
+  Scenario: A wired SwiftUI view cancels its subscription Task when it disappears
+    # F-17: WiredView spawns the cache subscription inside a nested unstructured Task,
+    # which escapes the .task modifier's cancellation. On disappear the loop must stop.
+    Given a wired SwiftUI view subscribed to the task collection appears on screen
+    When the view disappears (is removed from the hierarchy)
+    Then its subscription loop terminates (no further cache reads occur for that view)
+    And the cache subscribe continuation it held is released
+    And it no longer writes into its @State after disappearing
+
+  @[SKIP] @[SWIFT]
+  Scenario: Query property wrapper does not re-subscribe on an unrelated parent re-render
+    # F-18: the SwiftUI @Query wrapper's update() must not tear down and rebuild its
+    # subscription on every graph evaluation — only when the resolved query identity changes.
+    Given a SwiftUI view hosts a @Query for "tasks/item-1"
+    And the parent view re-renders for a reason unrelated to that query
+    Then the @Query does NOT cancel and recreate its subscription
+    And no flicker or transient empty value is emitted as a result of the parent re-render
+    When the query's resolved id actually changes to "tasks/item-2"
+    Then the @Query cancels the old subscription and creates exactly one new subscription
 
   # ---------------------------------------------------------------------------
   # 10. Schema migration

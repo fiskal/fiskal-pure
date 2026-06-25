@@ -258,6 +258,87 @@ describe('rollback on remote failure', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Schema validation (F-02)
+// ---------------------------------------------------------------------------
+
+describe('schema validation', () => {
+  const schema = {
+    type: 'object',
+    required: ['title'],
+    properties: {
+      title: { type: 'string', minLength: 1 },
+      priority: { type: 'string', enum: ['low', 'high'] },
+    },
+  }
+
+  function makeValidatingStore(): StoreInstance {
+    return createStore(MemoryAdapter(), { models: { tasks: { schema } } })
+  }
+
+  it('rejects a write missing a required field and leaves the cache unchanged', async () => {
+    const store = makeValidatingStore()
+    const writeSpy = vi.spyOn(store.adapter, 'write')
+
+    const create = createMutate<{ id: string }>(store, {
+      action: 'createTask',
+      // Missing required `title`
+      write: ({ id }) => ({ path: 'tasks', id, fields: { priority: 'low' }, merge: false }),
+    })
+
+    await expect(create({ id: 'bad1' })).rejects.toThrow(/schema validation failed/)
+
+    // Optimistic cache update must never have happened
+    expect(getDoc(store.getCache(), 'tasks', 'bad1')).toBeUndefined()
+    // Remote write must never have been dispatched
+    expect(writeSpy).not.toHaveBeenCalled()
+  })
+
+  it('rejects a value outside an enum', async () => {
+    const store = makeValidatingStore()
+    const create = createMutate<{ id: string }>(store, {
+      write: ({ id }) => ({ path: 'tasks', id, fields: { title: 'ok', priority: 'urgent' }, merge: false }),
+    })
+    await expect(create({ id: 'bad2' })).rejects.toThrow(/schema validation failed/)
+    expect(getDoc(store.getCache(), 'tasks', 'bad2')).toBeUndefined()
+  })
+
+  it('classifies a validation failure and records an ErrorDoc', async () => {
+    const store = makeValidatingStore()
+    const create = createMutate<{ id: string }>(store, {
+      action: 'createTask',
+      write: ({ id }) => ({ path: 'tasks', id, fields: { priority: 'low' }, merge: false }),
+    })
+
+    await expect(create({ id: 'bad3' })).rejects.toThrow()
+
+    const errors = store.getCache().get('errors')
+    expect(errors).toBeDefined()
+    const errDoc = [...errors!.values()][0]
+    expect(errDoc.kind).toBe('validation')
+    expect(errDoc.action).toBe('createTask')
+  })
+
+  it('allows a write that satisfies the schema', async () => {
+    const store = makeValidatingStore()
+    const create = createMutate<{ id: string }>(store, {
+      write: ({ id }) => ({ path: 'tasks', id, fields: { title: 'valid', priority: 'high' }, merge: false }),
+    })
+    await expect(create({ id: 'good1' })).resolves.toBeDefined()
+    expect(getDoc(store.getCache(), 'tasks', 'good1')?.title).toBe('valid')
+  })
+
+  it('skips validation for delete descriptors', async () => {
+    const store = makeValidatingStore()
+    seed(store, { tasks: [mkDoc({ id: 'del1', title: 'present' })] })
+    const remove = createMutate<{ id: string }>(store, {
+      write: ({ id }) => ({ path: 'tasks', id, delete: true }),
+    })
+    await expect(remove({ id: 'del1' })).resolves.toBeDefined()
+    expect(getDoc(store.getCache(), 'tasks', 'del1')).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // shouldPass / shouldFail helpers
 // ---------------------------------------------------------------------------
 

@@ -27,6 +27,10 @@ type QuerySpec = {
 type QueryMap = Record<string, QuerySpec>
 type QueryFn<P> = (props: P) => QueryMap
 
+// Module-scope shared noop so the missing-action prop is referentially stable
+// across renders (preserves React.memo / useCallback dep stability).
+const NOOP: MutateFn = async () => {}
+
 // ---------------------------------------------------------------------------
 // createWireView
 // ---------------------------------------------------------------------------
@@ -78,17 +82,24 @@ export function createWireView(
       const mapKey = JSON.stringify(resolvedMap)
       const mapKeyRef = useRef(mapKey)
 
-      const [data, setData] = useState<Record<string, Doc | Doc[] | null>>(() => {
-        const initial: Record<string, Doc | Doc[] | null> = {}
+      // Shared 3-state read contract (see useRead.ts:5-9):
+      //   undefined — loading (collection not yet in cache)
+      //   null      — doc not found (single-doc query with id)
+      //   Doc/Doc[] — loaded (collection may be empty)
+      const [data, setData] = useState<Record<string, Doc | Doc[] | null | undefined>>(() => {
+        const initial: Record<string, Doc | Doc[] | null | undefined> = {}
         for (const [key, spec] of Object.entries(resolvedMap)) {
           const q = specToQuery(spec)
           const cache = store.getCache()
+          const col = cache.get(q.path)
           if (q.id !== undefined) {
-            const doc = cache.get(q.path)?.get(q.id)
-            initial[key] = doc ? store.enrich(q.path, doc) : null
+            // Distinguish loading (no collection) from not-found (collection
+            // present but id absent).
+            initial[key] =
+              col === undefined ? undefined : (col.get(q.id) ? store.enrich(q.path, col.get(q.id)!) : null)
           } else {
-            const col = cache.get(q.path)
-            initial[key] = col ? Array.from(col.values()).map(d => store.enrich(q.path, d)) : []
+            initial[key] =
+              col === undefined ? undefined : Array.from(col.values()).map(d => store.enrich(q.path, d))
           }
         }
         return initial
@@ -99,12 +110,16 @@ export function createWireView(
         const unsubs = Object.entries(resolvedMap).map(([key, spec]) => {
           const q = specToQuery(spec)
           return store.adapter.subscribe(q, (docs: Doc[]) => {
-            const enriched = docs.map(d => store.enrich(q.path, d))
+            // Defense-in-depth: the OnChangeCallback contract guarantees Doc[],
+            // but a custom/buggy adapter may emit null or a bare doc. Coerce to
+            // a list so enrich/map never throws out of the subscription.
+            const list = Array.isArray(docs) ? docs : docs == null ? [] : [docs as Doc]
+            const enriched = list.map(d => store.enrich(q.path, d))
             const value: Doc | Doc[] | null =
               spec.id !== undefined
                 ? enriched.length > 0 ? (enriched[0] ?? null) : null
                 : enriched
-            setData((prev: Record<string, Doc | Doc[] | null>) => ({ ...prev, [key]: value }))
+            setData((prev: Record<string, Doc | Doc[] | null | undefined>) => ({ ...prev, [key]: value }))
           })
         })
         return () => unsubs.forEach(u => u())
@@ -112,7 +127,7 @@ export function createWireView(
       }, [mapKey])
 
       const actions = actionNames.reduce<Record<string, MutateFn>>(
-        (acc, n) => ({ ...acc, [n]: allMutates[n] ?? (async () => {}) }),
+        (acc, n) => ({ ...acc, [n]: allMutates[n] ?? NOOP }),
         {},
       )
 

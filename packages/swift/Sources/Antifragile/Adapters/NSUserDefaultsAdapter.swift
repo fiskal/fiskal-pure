@@ -12,16 +12,22 @@ private final class ObserverBox: @unchecked Sendable {
     init(_ token: NSObjectProtocol) { self.token = token }
 }
 
+public enum NSUserDefaultsAdapterError: Error, Sendable {
+    case invalidSuite(String)
+}
+
 public struct NSUserDefaultsAdapter: Adapter {
 
     private let defaults: UserDefaults
 
-    public init(suiteName: String? = nil) {
-        if let name = suiteName {
-            self.defaults = UserDefaults(suiteName: name) ?? .standard
-        } else {
-            self.defaults = .standard
+    public init(suiteName: String?) throws {
+        guard let name = suiteName else {
+            throw NSUserDefaultsAdapterError.invalidSuite("NSUserDefaultsAdapter requires a non-nil suite name")
         }
+        guard let suite = UserDefaults(suiteName: name) else {
+            throw NSUserDefaultsAdapterError.invalidSuite("NSUserDefaultsAdapter requires a non-nil suite name")
+        }
+        self.defaults = suite
     }
 
     // MARK: - Adapter: subscribe

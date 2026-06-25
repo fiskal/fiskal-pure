@@ -20,6 +20,7 @@ public struct QueryWrapper<T>: DynamicProperty {
     // MARK: - Internal state
     @State private var value: T?
     @State private var task: Task<Void, Never>?
+    @State private var lastQuery: Query?
 
     // MARK: - Descriptor
     private let descriptor: [String: Any]
@@ -44,9 +45,14 @@ public struct QueryWrapper<T>: DynamicProperty {
 
     public func update() {
         guard let store else { return }
+        let query = buildQuery(from: descriptor)
+        // Stable-key guard: re-subscribe only when the query actually changes
+        // (or no task exists yet). Mirrors useRead.ts's where/fields deps so a
+        // single subscription survives unrelated parent re-renders.
+        if query == lastQuery, task != nil { return }
         // Cancel any previous subscription task.
         task?.cancel()
-        let query = buildQuery(from: descriptor)
+        lastQuery = query
         task = Task { @MainActor in
             for await docs in store.cache.subscribe(query: query) {
                 guard !Task.isCancelled else { break }

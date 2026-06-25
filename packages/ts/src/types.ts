@@ -65,9 +65,9 @@ export type FieldMap = Record<string, unknown | AtomicOp>
 export interface WriteDescriptor {
   path: string
   id: string
-  /** When absent the entire document is set (merge = false). */
+  /** When absent, an existing doc is left unchanged (patch); with fields, missing fields are preserved by default. */
   fields?: FieldMap
-  /** If true, use merge semantics (updateDoc / partial put). Default: false. */
+  /** merge defaults to true (patch existing fields); pass merge:false to fully replace the document. Default: true. */
   merge?: boolean
   /** If true, delete the document entirely. */
   delete?: boolean
@@ -149,9 +149,8 @@ export interface ErrorDoc extends Doc {
 
 export type MutateFn = (payload?: Record<string, unknown>) => Promise<unknown>
 
-export interface MutateSpec {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  write: (payload: any) => WriteOp
+export interface MutateSpec<P = Record<string, unknown>> {
+  write: (payload: P) => WriteOp
 }
 
 // ---------------------------------------------------------------------------
@@ -171,5 +170,7 @@ export interface StoreInstance {
    * when no model is registered for the path (identity function).
    */
   enrich(path: string, doc: Doc): Doc
+  /** Per-collection model registry (schema + compute). Used by mutate for validation. */
+  models: Record<string, Model>
   mutates: Record<string, MutateFn>
 }

@@ -9,9 +9,9 @@
 //             "todos": ["path": "todos"]
 //         ],
 //         actions: ["addTodo", "removeTodo"]
-//     ) { (props: WireProps) -> AnyView in
-//         AnyView(TodoListComponent(todos: props.data["todos"] as? [Doc] ?? [],
-//                                   addTodo: props.actions["addTodo"]!))
+//     ) { (props: WireProps) in
+//         TodoListComponent(todos: props.data["todos"] as? [Doc] ?? [],
+//                           addTodo: props.actions["addTodo"]!)
 //     }
 
 import SwiftUI
@@ -37,12 +37,17 @@ public struct WireProps {
 ///   - name: Identifier for the wired view (used in debug descriptions).
 ///   - queries: Map of logical name → query descriptor dict.
 ///   - actions: List of action names to expose as callable closures.
-///   - view: Pure component factory — receives WireProps, returns AnyView.
-public func wireView(
+///   - view: Pure component factory — receives WireProps, returns a concrete View.
+///
+/// The factory's concrete return type is preserved (no AnyView erasure), so
+/// SwiftUI keeps structural identity and can diff the wired component. For the
+/// rare heterogeneous case where a caller must return different view types per
+/// branch, wrap explicitly in `AnyView` and call `wireView<AnyView>(...)`.
+public func wireView<Content: View>(
     name: String,
     queries: [String: [String: Any]],
     actions actionNames: [String],
-    view component: @escaping (WireProps) -> AnyView
+    view component: @escaping (WireProps) -> Content
 ) -> some View {
     WiredView(
         name: name,
@@ -54,21 +59,25 @@ public func wireView(
 
 // MARK: - WiredView (internal)
 
-private struct WiredView: View {
+private struct WiredView<Content: View>: View {
     let name: String
     let queries: [String: [String: Any]]
     let actionNames: [String]
-    let component: (WireProps) -> AnyView
+    let component: (WireProps) -> Content
 
     @Environment(\.store) private var store: Store?
     @State private var data: [String: Any] = [:]
-    @State private var subscriptionTask: Task<Void, Never>?
+
+    /// Stable key over the query set — re-subscribe only when it changes.
+    private var queriesKey: String {
+        queries.keys.sorted().joined(separator: ",")
+    }
 
     var body: some View {
         let resolvedActions = buildActions()
         let props = WireProps(data: data, actions: resolvedActions)
         return component(props)
-            .task {
+            .task(id: queriesKey) {
                 await subscribeToQueries()
             }
     }
@@ -78,18 +87,16 @@ private struct WiredView: View {
     @MainActor
     private func subscribeToQueries() async {
         guard let store else { return }
-        subscriptionTask?.cancel()
-        subscriptionTask = Task {
-            // Fan out one AsyncStream per query and merge results.
-            // Simplified: subscribe to each query and update the data dict.
-            await withTaskGroup(of: Void.self) { group in
-                for (queryName, descriptor) in queries {
-                    group.addTask { @MainActor in
-                        let query = buildQuery(from: descriptor)
-                        for await docs in store.cache.subscribe(query: query) {
-                            guard !Task.isCancelled else { break }
-                            data[queryName] = docs
-                        }
+        // Run the fan-out as a structured child of the `.task` modifier so
+        // SwiftUI cancels it (and the per-query AsyncStream loops, via the
+        // `guard !Task.isCancelled` below) automatically on disappear.
+        await withTaskGroup(of: Void.self) { group in
+            for (queryName, descriptor) in queries {
+                group.addTask { @MainActor in
+                    let query = buildQuery(from: descriptor)
+                    for await docs in store.cache.subscribe(query: query) {
+                        guard !Task.isCancelled else { break }
+                        data[queryName] = docs
                     }
                 }
             }
@@ -148,8 +155,17 @@ internal func buildQuery(from dict: [String: Any]) -> Query {
 
 // MARK: - Store.dispatch (action-name routing)
 
+/// Raised when a wired action name resolves to no registered mutate.
+/// Surfacing this (rather than silently no-opping) preserves the replay premise:
+/// every dispatched action must produce a logged, replayable write.
+public enum DispatchError: Error, Sendable {
+    /// No registered mutate matched the given action name. Carries the name.
+    case unknownAction(String)
+}
+
 extension Store {
     /// Dispatches by action name — looks up the matching Mutate across all configs.
+    /// First-wins on duplicate action names across configs.
     @MainActor
     public func dispatch(
         action: String,
@@ -161,7 +177,8 @@ extension Store {
                 return
             }
         }
-        // If no registered mutate found, no-op (or throw for strict mode).
-        // Strict would be: throw AntifragileError.unknownAction(action)
+        // No registered mutate matched — never silently no-op: a dispatched
+        // action with no write would break the replay log.
+        throw DispatchError.unknownAction(action)
     }
 }

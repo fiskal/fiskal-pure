@@ -1,17 +1,21 @@
-Feature: Model enrichment — compute getters and computer methods (ADR-0007)
+Feature: Model enrichment — compute closures (ADR-0007)
 
-  A Model registered with createStore provides two kinds of compute:
-  - Getters: derived from own fields, accessed as plain values (no call)
-  - Computers: methods taking a sibling document argument, called as doc.method(sibling)
+  A Model registered with createStore provides two kinds of compute, both
+  expressed as CLOSURES that take the document as their first argument:
+  - Simple:    (doc) => value             — derived from own fields, read as a plain value
+  - Dependent: (doc) => (sibling) => value — returns a function the view calls with a sibling
 
-  Enrichment is applied via Object.defineProperties so getter descriptors are live.
-  Enrichment is transparent — components never know the difference between raw and enriched docs.
+  Enrichment runs at read time (store.enrich): each closure is invoked and its result
+  is assigned as a plain property on a NEW doc object. Because results are plain
+  properties (not getters bound to `this`), they are safe to destructure with no
+  `this` footgun. Enrichment is transparent — components never know the difference
+  between raw and enriched docs.
 
   Background:
     Given a TaskModel with:
-      | compute    | type     | implementation                                      |
-      | titleUpper | getter   | return this.title.toUpperCase()                     |
-      | isOwnedBy  | computer | (userId) => return this.ownerId === userId           |
+      | compute    | type      | implementation                                       |
+      | titleUpper | simple    | (doc) => doc.title.toUpperCase()                     |
+      | isOwnedBy  | dependent | (doc) => (userId) => doc.ownerId === userId          |
     And a store created with models: { tasks: TaskModel }
     And seed data:
       """
@@ -22,17 +26,17 @@ Feature: Model enrichment — compute getters and computer methods (ADR-0007)
   # Tier 1 — happy path
   # ---------------------------------------------------------------------------
 
-  Scenario: getter is available as a plain value on enriched doc
+  Scenario: simple compute is available as a plain value on enriched doc
     When wireView delivers the document "tasks/task-1" to a component
     Then the component receives task.titleUpper = "DEPLOY TO PRODUCTION"
     And the component does NOT need to call titleUpper() — it is a plain string
 
-  Scenario: getter reflects the current field value (not a snapshot)
+  Scenario: simple compute reflects the field value at enrichment time
     Given the store enriches task-1 with the TaskModel
-    When titleUpper is accessed
-    Then it returns the uppercased version of the current task.title field
+    When titleUpper is read off the enriched doc
+    Then it equals the uppercased version of the task.title field at the time of enrichment
 
-  Scenario: computer method is callable on the enriched doc with a sibling argument
+  Scenario: dependent compute is callable on the enriched doc with a sibling argument
     Given the store enriches task-1 with the TaskModel
     When the component calls task.isOwnedBy("user-42")
     Then it returns true
@@ -51,7 +55,7 @@ Feature: Model enrichment — compute getters and computer methods (ADR-0007)
 
   Scenario: correct model is applied per collection
     Given a store with models: { tasks: TaskModel, sprints: SprintModel }
-    And SprintModel has a getter shortName that returns name.slice(0, 3).toUpperCase()
+    And SprintModel has a simple compute shortName: (doc) => doc.name.slice(0, 3).toUpperCase()
     When I enrich a tasks doc
     Then it has titleUpper but NOT shortName
     When I enrich a sprints doc with name "alpha sprint"
@@ -61,17 +65,42 @@ Feature: Model enrichment — compute getters and computer methods (ADR-0007)
   # Tier 2 — edge cases
   # ---------------------------------------------------------------------------
 
-  Scenario: getter handles missing field gracefully (no throw)
-    Given the store enriches a doc that is missing the "title" field
-    When the component reads task.titleUpper
-    Then it returns an empty string or a safe default — it does not throw
-
-  Scenario: computer method called as standalone function loses this (documented footgun)
+  Scenario: dependent compute is safe to destructure — no this footgun
+    # CORRECTED BEHAVIOUR: compute is now a closure (doc) => (sibling) => value,
+    # eagerly assigned as a plain property. It closes over doc, not `this`, so
+    # destructuring it off the doc and calling it standalone still works.
     Given the store enriches task-1 with the TaskModel
     When a developer destructures: const { isOwnedBy } = task
-    And calls isOwnedBy("user-42")
-    Then this === undefined in strict mode and the call throws or returns wrong result
-    And [MANUAL] the README and EDGE-CASES.md must document this constraint
+    And calls isOwnedBy("user-42") with no receiver
+    Then it returns true (the closure captured doc — there is no `this` to lose)
+    And the call does not throw
+
+  Scenario: useRead and wireView enrich identically — same compute properties on both read paths
+    # F-07: both public read paths must run store.enrich so an identical query
+    # yields docs WITH compute properties through either useRead or wireView.
+    Given a component reading task-1 via useRead(store, { type: "doc", key: "tasks/task-1" })
+    And a component reading task-1 via wireView wiring { task: { id: "tasks/task-1" } }
+    Then both receive task.titleUpper = "DEPLOY TO PRODUCTION"
+    And both receive task.isOwnedBy as a callable function
+    And neither read path returns a doc with compute properties missing or undefined
+
+  Scenario: a compute closure that throws on one doc does not crash the whole list render
+    # F-22: enrichment must isolate a throwing user closure so one malformed doc
+    # does not take down every other doc in the collection.
+    Given a model whose compute closure does doc.title.toUpperCase() with no guard
+    And a collection containing task-1 (has title) and task-bad (missing title)
+    When the collection is enriched and delivered to a list component
+    Then task-1 is delivered with its computed titleUpper value
+    And task-bad is delivered without crashing the enrichment of the other docs
+    And the failure is surfaced as a value (e.g. an ErrorDoc or a safe default), not a thrown render
+
+  Scenario: enriched docs are immutable snapshots that do not alias caller state
+    # F-22: the enriched doc and any embedded payload must be a fresh copy so a
+    # later mutation of the source object cannot rewrite an already-enriched/logged doc.
+    Given a raw doc is enriched into an enriched doc
+    When the original raw doc's fields are later mutated
+    Then the previously enriched doc's fields are unchanged
+    And no field of the enriched doc shares a mutable reference with the raw doc
 
   Scenario: enrichment does not mutate the original raw doc
     Given a raw doc object

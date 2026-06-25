@@ -57,7 +57,15 @@ export function createStore(adapter: Adapter, options?: StoreOptions): StoreInst
     if (!model?.compute) return doc
     const enriched: Record<string, unknown> = { ...doc }
     for (const [key, fn] of Object.entries(model.compute)) {
-      enriched[key] = fn(doc as Record<string, unknown>)
+      try {
+        enriched[key] = fn(doc as Record<string, unknown>)
+      } catch {
+        // Degrade a single derived property instead of throwing out of the
+        // wireView render/subscribe map. A thrown compute closure must not
+        // break the whole document or array of documents.
+        enriched[key] = undefined
+        // FiskalLogger.warn ev=enrich-throw path={path} key={key}
+      }
     }
     return enriched as Doc
   }
@@ -66,7 +74,7 @@ export function createStore(adapter: Adapter, options?: StoreOptions): StoreInst
   // The mutates map is filled in after construction so createMutate can reference
   // the complete StoreInstance (which requires mutates to exist on it).
   const resolvedMutates: Record<string, MutateFn> = {}
-  const store: StoreInstance = { adapter, getCache, setCache, notify, subscribe, enrich, mutates: resolvedMutates }
+  const store: StoreInstance = { adapter, getCache, setCache, notify, subscribe, enrich, models, mutates: resolvedMutates }
 
   // Resolve inline mutate specs into callable MutateFns
   if (options?.mutates) {

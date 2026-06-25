@@ -32,14 +32,14 @@ Feature: Errors as a root-level collection (ADR-0008)
     Then "tasks/task-alpha" status is still "active" in the cache
 
   Scenario: any component can subscribe to all unresolved errors
-    Given a wireView wiring { errors: { collection: "errors", where: { resolved: false } } }
+    Given a wireView wiring { errors: { path: "errors", where: { resolved: false } } }
     When a write fails
     Then the wired component receives the error document in its errors prop
 
   Scenario: action-scoped error subscription receives only matching errors
     Given a WiredArchiveButton wired with:
       """
-      { error: { collection: "errors", where: { action: "ArchiveTask", resolved: false } } }
+      { error: { path: "errors", where: { action: "ArchiveTask", resolved: false } } }
       """
     When ArchiveTask fails
     Then the WiredArchiveButton receives the error in its error prop
@@ -79,7 +79,7 @@ Feature: Errors as a root-level collection (ADR-0008)
   Scenario: resolved errors are excluded from { where: { resolved: false } } queries
     Given the errors collection contains one error with resolved = false
     When dismissError sets resolved = true on that error
-    Then a query { collection: "errors", where: { resolved: false } } returns empty
+    Then a query { path: "errors", where: { resolved: false } } returns empty
 
   Scenario: the errors collection does NOT appear in store.history.log()
     Given a mutate that fails
@@ -95,3 +95,32 @@ Feature: Errors as a root-level collection (ADR-0008)
     Given a mutate "ArchiveTask" called with payload { "id": "tasks/task-alpha" }
     When the mutate fails
     Then the ErrorDoc has payload.id = "tasks/task-alpha"
+
+  # ---------------------------------------------------------------------------
+  # Tier 2 — unknown / unregistered action is observable, not a silent no-op (F-19)
+  # The replay premise requires every dispatched action to be accounted for.
+  # ---------------------------------------------------------------------------
+
+  Scenario: dispatching an action name that is not registered does not silently succeed
+    # F-19: a typo'd or unregistered action currently no-ops with no history entry
+    # and no error. It must be surfaced (ErrorDoc kind "unknown-action") so the
+    # replay log is never silently incomplete.
+    Given no mutate is registered under the name "ArchiveTaks" (a typo of "ArchiveTask")
+    When a wired component dispatches "ArchiveTaks"
+    Then the dispatch does not silently succeed
+    And an ErrorDoc is recorded identifying the unknown action "ArchiveTaks"
+    And no phantom history entry is recorded for the unknown action
+
+  Scenario: a successfully dispatched, registered action always produces a history entry
+    # F-19 inverse: a valid action must always be logged, so the replay log is complete.
+    Given a mutate is registered under the name "ArchiveTask"
+    And the store is backed by a working MemoryAdapter
+    When a wired component dispatches "ArchiveTask" and it succeeds
+    Then exactly one history entry is recorded for "ArchiveTask"
+
+  Scenario: an action registered under the same name in two configs is not silently shadowed
+    # F-19 secondary: the same action name across two BackingStoreConfigs must not
+    # have only the first config fire while the second is silently dropped.
+    Given the action "SyncTask" is registered in both config "primary" and config "mirror"
+    When "SyncTask" is dispatched
+    Then both registrations run (the second is not silently shadowed by the first)

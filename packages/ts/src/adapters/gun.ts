@@ -63,7 +63,7 @@ export function GunAdapter(gun: any): Adapter {
   function subscribe(query: Query, onChange: OnChangeCallback): Unsubscribe {
     if (query.id) {
       // Single document subscription
-      const node = gun.get(query.collection).get(query.id)
+      const node = gun.get(query.path).get(query.id)
       node.on((data: any) => {
         const doc = toDoc(query.id as string, data)
         onChange(doc ? [doc] : [])
@@ -77,7 +77,7 @@ export function GunAdapter(gun: any): Adapter {
     // Collection subscription — accumulate all docs in a local map
     // Gun fires .map().on() once per document, then re-fires on updates.
     const accumulated = new Map<string, Doc>()
-    const colNode = gun.get(query.collection)
+    const colNode = gun.get(query.path)
 
     colNode.map().on((data: any, id: string) => {
       if (data == null) {
@@ -110,7 +110,7 @@ export function GunAdapter(gun: any): Adapter {
 
     // Gun has no transactions — apply each descriptor independently
     for (const desc of descs) {
-      const node = gun.get(desc.collection).get(desc.id)
+      const node = gun.get(desc.path).get(desc.id)
 
       if (desc.delete) {
         // Gun deletes a node by putting null
@@ -157,11 +157,17 @@ function resolvePlainFields(fields: FieldMap): Record<string, unknown> {
         case '::arrayRemove':
           // Removal cannot be expressed without reading first — emit null to
           // signal deletion of the field. Caller should read-then-write instead.
+          // Warn loudly: this is a lossy coercion, not a true arrayRemove.
+          // eslint-disable-next-line no-console
+          console.warn(`GunAdapter: ::arrayRemove on '${key}' is not supported by Gun's CRDT model; coercing to null. Use read-then-write instead.`)
           out[key] = null
           break
         case '::increment':
           // Cannot increment without reading first — set to the delta value.
           // Callers should use read-then-write for atomic counters in Gun.
+          // Warn loudly: the delta is written as an absolute value, not added.
+          // eslint-disable-next-line no-console
+          console.warn(`GunAdapter: ::increment on '${key}' is not atomic in Gun; writing the delta (${value.n}) as an absolute value. Use read-then-write instead.`)
           out[key] = value.n
           break
         case '::serverTimestamp':

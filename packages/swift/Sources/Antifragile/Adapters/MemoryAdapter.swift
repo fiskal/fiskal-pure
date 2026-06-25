@@ -17,6 +17,10 @@ public struct MemoryAdapter: Adapter {
 
     // MARK: - Adapter: subscribe
 
+    // Delivery contract (see `Adapter.subscribe` doc): register-then-emit atomically so
+    // no write can slip through the gap between the initial snapshot and registration.
+    // onChange may be invoked off the main actor — consumers must hop if they need main.
+    // Callers MUST call the returned cancel closure to release the subscription.
     public func subscribe(
         query: Query,
         onChange: @Sendable @escaping ([Doc]) -> Void
@@ -25,11 +29,12 @@ public struct MemoryAdapter: Adapter {
         let capturedState = state
 
         Task {
-            // Emit current value immediately.
-            let initial = await capturedState.query(query)
+            // Register first, then emit the snapshot taken at registration time, so no
+            // write can be lost in the gap. This atomic register-then-emit may double-
+            // deliver the registration-time value once if a concurrent write fans out
+            // before the initial emit; the snapshot is consistent so callers dedupe.
+            let initial = await capturedState.subscribe(id: id, query: query, onChange: onChange)
             onChange(initial)
-            // Register for future changes.
-            await capturedState.addSubscriber(id: id, query: query, onChange: onChange)
         }
 
         return {
@@ -147,6 +152,18 @@ private actor MemoryState {
     }
 
     // MARK: - Subscribers
+
+    // Atomic register-then-emit: registers the subscriber and returns the snapshot
+    // taken in the same actor-isolated step, so no write can land in the gap between
+    // the snapshot and registration. Callers emit the returned value to the subscriber.
+    func subscribe(
+        id: String,
+        query: Query,
+        onChange: @Sendable @escaping ([Doc]) -> Void
+    ) -> [Doc] {
+        subscribers[id] = (query, onChange)
+        return executeQuery(query)
+    }
 
     func addSubscriber(
         id: String,

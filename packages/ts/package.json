@@ -10,14 +10,6 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
-    "./adapters/firestore": {
-      "import": "./dist/adapters/firestore.js",
-      "types": "./dist/adapters/firestore.d.ts"
-    },
-    "./adapters/gun": {
-      "import": "./dist/adapters/gun.js",
-      "types": "./dist/adapters/gun.d.ts"
-    },
     "./adapters/memory": {
       "import": "./dist/adapters/memory.js",
       "types": "./dist/adapters/memory.d.ts"

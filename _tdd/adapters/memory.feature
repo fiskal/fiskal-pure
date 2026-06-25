@@ -69,3 +69,25 @@ Feature: MemoryAdapter — in-process key-value store
     When I call adapter.write("tasks/task-030", undefined)
     Then the adapter does not contain "tasks/task-030"
     And the subscriber is called with undefined
+
+  # ---------------------------------------------------------------------------
+  # Tier 2 — atomic op value-model parity (F-13)
+  # ---------------------------------------------------------------------------
+
+  Scenario: ::increment accumulates whether the stored counter is an integer or a float
+    # F-13: the increment apply path must treat any numeric stored value as a number.
+    # A counter seeded as an integer must not cast-fail and reset to the delta.
+    Given the adapter contains "counters/c-1" with count = 5 (an integer)
+    When I apply ::increment of 3 to "counters/c-1".count
+    Then "counters/c-1".count = 8
+    When I apply ::increment of 1.5 to a counter seeded as 2.0 (a float)
+    Then that counter = 3.5
+    And in neither case does the counter reset to just the delta
+
+  Scenario: a multi-value ::arrayUnion is applied as a single atomic op (parity with TS)
+    # F-13/F-10: array ops carry the full value set; the adapter applies them in one op,
+    # so a 3-element union is one logged op, replayable 1:1 across platforms.
+    Given the adapter contains "tasks/task-040" with tags []
+    When I apply ::arrayUnion of ["a", "b", "c"] to "tasks/task-040".tags
+    Then "tasks/task-040".tags = ["a", "b", "c"]
+    And the change is recorded as exactly one atomic op, not three

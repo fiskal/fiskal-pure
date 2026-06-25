@@ -75,3 +75,52 @@ Feature: NSUserDefaultsAdapter — key-value adapter with notification-based sub
       | priority  | Int       | 5                            |
       | createdAt | Date(ISO) | 2026-06-23T21:00:00Z        |
     Then reading "tasks/task-ud-types" returns the same values for all fields
+
+  # ---------------------------------------------------------------------------
+  # Tier 2 — numeric and timestamp value-model correctness (F-13)
+  # ---------------------------------------------------------------------------
+
+  Scenario: incrementing a counter seeded as an Int does not reset to the delta
+    # F-13: an Int boxed in Any does not `as? Double`-bridge in Swift, so the cast
+    # fails and the counter resets. An increment must accumulate regardless of whether
+    # the stored value was written as an Int or a Double.
+    Given the suite contains "counters/c-1" with count = 5 (written as an integer)
+    When I apply ::increment of 3 to "counters/c-1".count
+    Then "counters/c-1".count = 8 (not 3)
+    And the increment does not silently reset the counter to the delta
+
+  Scenario: a serverTimestamp value is stored and read back as a comparable, orderable value
+    # F-13: serverTimestamp is stored as three different runtime types across adapters,
+    # breaking cross-adapter orderBy. The stored form must be comparable for ordering.
+    Given two docs written with ::serverTimestamp values one second apart
+    When I read the collection ordered by that timestamp field
+    Then the two docs sort in chronological order
+    And the timestamp comparison does not silently drop or mis-sort across adapters
+
+  Scenario: a write whose value is not JSON-serialisable does not silently vanish
+    # F-13: JSONSerialization via try? swallows non-encodable values, dropping the
+    # whole write with no error. A non-serialisable field must surface an error.
+    Given a write to "tasks/task-ud-nonjson" carrying a field value that cannot be JSON-encoded
+    When the adapter attempts the write
+    Then the write does not silently disappear
+    And either the value is normalised to a serialisable form OR an error is surfaced to the caller
+
+  # ---------------------------------------------------------------------------
+  # Tier 2 — subscriber scoping and lifecycle (F-16)
+  # ---------------------------------------------------------------------------
+
+  Scenario: an unrelated key write does not wake a subscriber scoped to a different key
+    # F-16 over-fire: the suite-wide didChangeNotification must not re-fire every
+    # subscriber. A subscriber on tasks/A must not be called when settings/theme changes.
+    Given a subscriber is attached to "tasks/task-ud-050"
+    When I write an unrelated key "settings/theme" with value "dark"
+    Then the subscriber for "tasks/task-ud-050" is NOT called
+    And its call count remains 0
+
+  Scenario: dropping a subscription's cancel handle without calling it does not leak the subscriber
+    # F-16 leak: a (query, onChange) registration must be cleaned up on teardown so a
+    # dropped cancel handle does not retain the subscriber forever.
+    Given a subscriber is attached to "tasks/task-ud-060" and its cancel handle is dropped
+    When the subscriber's owner is deallocated
+    Then the adapter no longer retains the dropped subscriber
+    And subsequent writes do not invoke the leaked callback

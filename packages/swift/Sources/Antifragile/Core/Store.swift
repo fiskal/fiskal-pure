@@ -51,6 +51,15 @@ public enum StoreBuilder {
     public static func buildEither(second: [BackingStoreConfig]) -> [BackingStoreConfig] { second }
 }
 
+// MARK: - StoreError
+
+/// Classifiable store-level errors surfaced during mutate dispatch.
+public enum StoreError: Error, Sendable {
+    /// One or more written paths are owned by no BackingStoreConfig, so the
+    /// write could never be persisted. Carries the offending paths.
+    case unroutedWrite(paths: [String])
+}
+
 // MARK: - Store
 
 @Observable
@@ -129,6 +138,16 @@ public final class Store {
 
         // Persist to all adapters. On failure, roll back.
         do {
+            // Every written path must be owned by some BackingStoreConfig,
+            // otherwise the write would be applied to cache + history but never
+            // persisted. Treat an unrouted path as a configuration error so it
+            // rolls back (via the catch below) instead of silently vanishing.
+            let ownedPaths = Set(configs.values.flatMap { $0.models })
+            let unowned = writes.filter { !ownedPaths.contains($0.path) }
+            if !unowned.isEmpty {
+                throw StoreError.unroutedWrite(paths: unowned.map { $0.path })
+            }
+
             for config in configs.values {
                 let relevant = writes.filter { w in config.models.contains(w.path) }
                 if relevant.isEmpty { continue }
@@ -163,6 +182,7 @@ public final class Store {
     // MARK: - Error classification
 
     private func classifyError(_ error: Error) -> String {
+        if case StoreError.unroutedWrite = error { return "configuration" }
         let msg = error.localizedDescription.lowercased()
         if msg.contains("permission") || msg.contains("forbidden") || msg.contains("unauthorized") { return "permission" }
         if msg.contains("network") || msg.contains("timeout") || msg.contains("offline") || msg.contains("connection") { return "network" }

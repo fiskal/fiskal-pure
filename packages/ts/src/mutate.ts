@@ -33,6 +33,7 @@ import type {
   WriteDescriptor,
   WriteOp,
 } from './types.js'
+import { validateDoc } from './validate.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -97,6 +98,35 @@ function classifyError(err: unknown): ErrorKind {
 
 let _errorSeq = 0
 
+// Writes an ErrorDoc into the in-memory `errors/` collection (never remote) and
+// notifies subscribers. Shared by the validation path and the remote-failure
+// catch so the replay/audit log is consistent across both failure kinds.
+function recordError(
+  store: StoreInstance,
+  action: string,
+  err: unknown,
+  payload: Record<string, unknown>,
+  writes: WriteDescriptor[],
+): void {
+  const errorId = `${action}-${Date.now()}-${++_errorSeq}`
+  const errorDesc: WriteDescriptor = {
+    path: 'errors',
+    id: errorId,
+    fields: {
+      action,
+      kind: classifyError(err),
+      message: err instanceof Error ? err.message : String(err),
+      payload,
+      writes,
+      at: Date.now(),
+      resolved: false,
+    },
+    merge: false,
+  }
+  store.setCache(applyWrites(store.getCache(), [errorDesc]))
+  store.notify('errors')
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -132,6 +162,22 @@ export function createMutate<P extends Payload>(
     const descs: WriteDescriptor[] = Array.isArray(operation)
       ? operation
       : [operation]
+
+    // Enforce declared schemas BEFORE touching the cache. A validation failure
+    // means the optimistic update never happened, so there is nothing to roll
+    // back; we record an ErrorDoc for the replay/audit log and reject the write.
+    for (const desc of descs) {
+      if (desc.delete) continue
+      const schema = store.models[desc.path]?.schema
+      if (!schema) continue
+      const result = validateDoc(schema, desc.fields)
+      if (!result.valid) {
+        const validationError = new Error(`schema validation failed: ${result.message}`)
+        recordError(store, action, validationError, payload as Record<string, unknown>, descs)
+        throw validationError
+      }
+    }
+
     let nextCache: CacheState = store.getCache()
     try {
       nextCache = applyWrites(store.getCache(), descs)
@@ -157,23 +203,7 @@ export function createMutate<P extends Payload>(
       }
 
       // Write error doc to errors/ path (always in-memory, never remote)
-      const errorId = `${action}-${Date.now()}-${++_errorSeq}`
-      const errorDesc: WriteDescriptor = {
-        path: 'errors',
-        id: errorId,
-        fields: {
-          action,
-          kind: classifyError(err),
-          message: err instanceof Error ? err.message : String(err),
-          payload: payload as Record<string, unknown>,
-          writes: descs,
-          at: Date.now(),
-          resolved: false,
-        },
-        merge: false,
-      }
-      store.setCache(applyWrites(store.getCache(), [errorDesc]))
-      store.notify('errors')
+      recordError(store, action, err, payload as Record<string, unknown>, descs)
 
       throw err
     }

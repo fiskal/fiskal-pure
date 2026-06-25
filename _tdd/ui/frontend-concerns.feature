@@ -217,12 +217,12 @@ Feature: Frontend engineer concerns — React and SwiftUI patterns
     # To optimise: add fields: ['totalItems'] to the sprint query.
     # Now only changes to the fields the computer actually reads trigger a re-render.
     # The component does not change — only the wireView query narrows.
-    Given WiredTaskItem with default query: { sprint: { collection: 'sprints', id: sprintId } }
+    Given WiredTaskItem with default query: { sprint: { path: 'sprints', id: sprintId } }
     When sprint.description changes (not used by completionPercent)
     Then WiredTaskItem re-renders (full sprint document subscribed — accurate but not optimal)
     And the rendered output is correct (completionPercent result unchanged)
 
-    Given WiredTaskItem with narrowed query: { sprint: { collection: 'sprints', id: sprintId, fields: ['totalItems'] } }
+    Given WiredTaskItem with narrowed query: { sprint: { path: 'sprints', id: sprintId, fields: ['totalItems'] } }
     When sprint.description changes (not in fields list)
     Then WiredTaskItem does NOT re-render
     And when sprint.totalItems changes, WiredTaskItem re-renders with the updated completionPercent
@@ -244,7 +244,7 @@ Feature: Frontend engineer concerns — React and SwiftUI patterns
     #
     # Rule 1: query by id. Each WiredTaskItem subscribes to one document.
     # A sibling update fires only the sibling's subscriber.
-    Given WiredTaskItem queries: { task: { collection: 'tasks', id: taskId } }
+    Given WiredTaskItem queries: { task: { path: 'tasks', id: taskId } }
     And WiredTaskList renders 10 WiredTaskItem children
     When task-2.status changes to "archived"
     Then only WiredTaskItem for task-2 re-renders
@@ -259,7 +259,7 @@ Feature: Frontend engineer concerns — React and SwiftUI patterns
     # createdAt does not cause a visible difference in the output.
     # When combined with fields: ['title', 'status'] in the query, the subscriber
     # only fires when those specific fields change.
-    Given WiredTaskItem queries: { task: { collection: 'tasks', id: taskId, fields: ['title', 'status'] } }
+    Given WiredTaskItem queries: { task: { path: 'tasks', id: taskId, fields: ['title', 'status'] } }
     And TaskItem is: ({ title, status }) => <li className={status}>{title}</li>
     When task-1.createdAt is updated (title and status unchanged)
     Then WiredTaskItem for task-1 does NOT re-render

@@ -14,8 +14,9 @@ public final class Cache {
     private(set) var storage: [String: [String: Doc]] = [:]
 
     // MARK: - Continuation registry for live subscriptions
-    // keyed by a per-subscription UUID
-    private var continuations: [String: AsyncStream<[Doc]>.Continuation] = [:]
+    // keyed by a per-subscription UUID; each entry retains its Query so the
+    // cache can re-evaluate the result set per subscriber.
+    private var continuations: [String: (query: Query, continuation: AsyncStream<[Doc]>.Continuation)] = [:]
 
     // MARK: - Init
     public init() {}
@@ -97,7 +98,7 @@ public final class Cache {
         let stream = AsyncStream<[Doc]> { continuation in
             // Emit current value immediately.
             continuation.yield(self.get(query: query))
-            self.continuations[id] = continuation
+            self.continuations[id] = (query, continuation)
             continuation.onTermination = { [weak self] _ in
                 Task { @MainActor [weak self] in
                     self?.continuations.removeValue(forKey: id)
@@ -110,11 +111,11 @@ public final class Cache {
     // MARK: - Notification fan-out
 
     private func notifySubscribers(path: String) {
-        // Re-evaluate every active subscription whose path matches.
-        // For simplicity we broadcast to all and let the subscriber filter.
-        // In a larger implementation you'd index by path.
-        for continuation in continuations.values {
-            continuation.yield([])
+        // Re-evaluate each subscription whose path matches and emit its real
+        // result set. Subscriptions on other paths are left untouched.
+        for (_, sub) in continuations {
+            guard sub.query.path == path else { continue }
+            sub.continuation.yield(self.get(query: sub.query))
         }
     }
 
@@ -128,9 +129,10 @@ public final class Cache {
     /// Restores the cache to a previous snapshot (rollback / time-travel).
     public func restore(_ snapshot: CacheSnapshot) {
         storage = snapshot.storage
-        // Notify all live subscribers that the world changed.
-        for continuation in continuations.values {
-            continuation.yield([])
+        // A snapshot restore can affect any path, so re-evaluate every
+        // subscriber and emit its real result set.
+        for (_, sub) in continuations {
+            sub.continuation.yield(self.get(query: sub.query))
         }
     }
 
