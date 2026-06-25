@@ -572,31 +572,36 @@ const WiredTaskList = wireView('TaskList',
 
 ---
 
-### `useRead` (internal; available directly for dynamic queries)
+### `wireView` — the container
 
-Used internally by `wireView`. Available directly when you need a dynamic query that cannot be expressed as a static `wireView` declaration. Avoid using inside component files — keep it in a wiring or effect layer.
+`wireView` creates a container component that owns the data. The view inside never knows where data comes from or how it changes. The container handles the subscription, resolves queries, injects actions, and passes everything as plain props.
 
-```ts
-import { useRead } from '@fiskal/antifragile'
+```
+store ──► wireView (container) ──► props ──► TaskItem (view)
+              ↑
+         isolated. predictable. hermetic.
+```
 
-// Single doc
-const task = useRead({ id: 'tasks/task-1' })
+**Isolated** — the view file has zero imports from the library. If you delete `wireView`, the view still compiles and tests fine with plain props.
 
-// Narrowed fields
-const titleOnly = useRead({ id: 'tasks/task-1', fields: ['title'] })
+**Predictable** — the container's query spec is a plain data object. You can read it and know exactly what data the view will receive. No hidden subscriptions, no implicit context.
 
-// Collection
-const allTaskIds = useRead({ collection: 'tasks' })
+**Hermetic** — the container re-renders only when its specific query result changes. A sibling's update does not reach this container.
 
-// Filtered
-const activeTasks = useRead({ collection: 'tasks', where: { status: 'active' } })
+**Debuggable** — when something looks wrong in the view, check the container's query spec first. If the spec is correct, the problem is in the store. The view itself cannot be the source of a data bug.
 
-// Filtered + sorted + projected
-const activeTaskTitles = useRead(
-  { collection: 'tasks', where: { status: 'active' }, orderBy: { createdAt: 'desc' } },
-  ['title', 'status'],
+**Fixable** — every mutation goes through the store's write log. When a bug is filed, the log gives you the exact sequence that produced the wrong state. Replay it, find the step, fix the write descriptor.
+
+```tsx
+// Container — owns the data boundary
+wireView('TaskItem',
+  ({ taskId }) => ({ task: { path: 'tasks', id: taskId } }),
+  ['archiveTask'],
+  TaskItem,   // ← pure view, receives task + archiveTask as plain props
 )
 ```
+
+The view (`TaskItem`) is a pure function. It cannot have a data bug. The container (`wireView`) is a plain data declaration. It cannot have hidden behaviour. Together they are the simplest possible unit of UI.
 
 ---
 
