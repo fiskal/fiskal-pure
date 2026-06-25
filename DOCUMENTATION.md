@@ -22,31 +22,55 @@ State management for React (TypeScript) and SwiftUI (Swift) where the view layer
 
 ## 1. What is Antifragile
 
-Antifragile enforces a single hard rule:
+**Views without data. Data tracks everything.**
 
-> **The view layer renders and dispatches. Everything else — reads, writes, computed properties, validation, business logic — lives in the store.**
+Views display. They cannot break because they have nothing to break — no hooks, no state, no logic. A view is a function that receives data and returns markup. If something looks wrong on screen, the problem is in the data layer, not the view.
 
-The connection between a component and the store is `wireView`. It is always declared outside the component file. A pure component has zero imports from `@fiskal/antifragile`. This is not a convention you agree to follow — it is a structural constraint. If someone adds a `useRead` or `useStore` call inside a component, the zero-import rule visibly breaks the pattern.
+Data tracks every change as a named, serializable write descriptor. The complete log is always there. When something breaks, you have the exact sequence that caused it — every mutation, in order — and an AI can replay it, diagnose the root cause, and fix it without a separate reproduction case.
+
+Mutations are injected into components as plain props. Testing a component means passing a function. No provider, no mock store, no setup.
+
+### The minimum
+
+```tsx
+// The view — no imports, no hooks
+const TaskItem = ({ task, archiveTask }) => (
+  <li>
+    <span>{task.title}</span>
+    <button onClick={() => archiveTask(task.id)}>Archive</button>
+  </li>
+)
+
+// The wire — outside the component, in store.ts or wires.ts
+wireView('TaskItem',
+  ({ taskId }) => ({ task: { collection: 'tasks', id: taskId } }),
+  ['archiveTask'],
+  TaskItem,
+)
+
+// The test — just props, nothing else
+render(<TaskItem task={{ id: '1', title: 'Deploy' }} archiveTask={vi.fn()} />)
+```
 
 ### The two problems it solves
 
 **Problem 1: Testing.**
-React's hooks API (`useState`, `useEffect`, `useSelector`) puts data logic inside components. Testing that logic requires mounting the component or mocking hooks. With Antifragile, all logic lives in the store. Components are plain functions of their props. You test them by passing props directly — no Provider, no store, no mounts.
+Hooks put data logic inside components. Testing that logic requires mounting the component or mocking the hooks. With Antifragile, all logic lives in the store. Components are plain functions of their props — pass props, assert output. No Provider, no store, no setup.
 
 **Problem 2: AI agents.**
-AI coding agents corrupt application state by adding `useState`, `useEffect`, and `useContext` inside components. They model state near its consumers — because that is what they are trained on. Antifragile removes the API surface. There is no `useRead` to call inside a component. There is no `useStore`. The only entry point is `wireView`, and it lives outside the component file. An agent cannot accidentally blur the boundary because the boundary has no door on the component side.
+AI agents add `useState`, `useEffect`, and `useContext` inside components because they model state near its consumer — that is what they are trained on. Antifragile removes the API surface. There is no `useRead` to call inside a component. The only entry point is `wireView`, and it is always outside the component file. An agent cannot blur the boundary because the boundary has no door on the component side.
 
 ### Why "antifragile"
 
-Standard observability tells you what broke. Antifragile means each failure makes the system stronger:
+Each failure makes the system stronger:
 
-1. Failure occurs — the action log and snapshot ship to the server automatically.
-2. Engineer replays the exact write sequence — root cause found without guessing.
+1. Failure occurs — the write log and snapshot are already there.
+2. Replay the exact mutation sequence — root cause found without guessing.
 3. Fix deployed.
-4. Same failure detected at runtime — `store.history.back()` restores from the pre-failure snapshot.
+4. Same failure detected at runtime — `store.history.back()` restores from pre-failure state.
 5. The failure never reaches a user again.
 
-Every write is a named, serialisable data descriptor. The complete log is always there. When something breaks you have the exact sequence that caused it — not a stack trace and a guess.
+Every write is a named, serializable data descriptor. The log is always there. When something breaks you have the exact sequence — not a stack trace and a guess.
 
 ---
 

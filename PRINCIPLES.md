@@ -1,71 +1,47 @@
 # Antifragile
-### Data-driven views for Swift and TypeScript.
+### Views without data. Data tracks everything.
 
-Separate data from views. Views display and dispatch — nothing else. All reads, writes, validation, and business logic live in the store.
+Views display. That is all they do. No hooks, no state, no logic — nothing that can break.
 
-- **Stateless views** — no hooks, no local state, no way to corrupt app state
-- **Time travel** — every write is a serializable data descriptor, replayable from any point
-- **Full debuggability** — the entire app state is a plain inspectable object at any moment
+Every mutation is a named, serializable change record. The full log is always there. When something breaks, you have the exact sequence that caused it — not a stack trace, not a guess — and an AI can replay it, diagnose it, and fix it.
+
+Mutations are injected into components as plain props. Testing a component means passing a function. No providers, no mocks, no store setup.
+
+- **Views that cannot break** — hooks are where view bugs live; remove hooks from views and views become inert
+- **Every change is a record** — serializable write descriptors, replayable from any point in the log
+- **AI-debuggable by design** — failures ship their own reproduction case: the log + changeset
+- **Mutations as props** — actions are injected, not imported; testing is calling a function
 - **Universal backing store** — Firestore, MongoDB, CloudKit, SQLite, GunJS, Keychain, NSUserDefaults
-- **Fully testable** — components test with plain props, mutations test as plain data, no mocks
 
 ---
 
-```tsx
-import { wireView } from './store';
+## The minimum — React
 
-// Pure and stateless. Pass any data to test or preview in isolation.
+```tsx
+// TaskItem.tsx — no library imports, no hooks
 const TaskItem = ({ task, archiveTask }) => (
   <li>
     <span>{task.title}</span>
     <button onClick={() => archiveTask(task.id)}>Archive</button>
   </li>
-);
+)
 
-// Wires TaskItem to the store. Re-renders only when its own task changes.
+// wires.ts — the only file that touches the store
+import { wireView } from './store'
 wireView('TaskItem',
-  ({ taskId }) => ({ task: { path: 'tasks', id: taskId } }),
+  ({ taskId }) => ({ task: { collection: 'tasks', id: taskId } }),
   ['archiveTask'],
   TaskItem,
-);
+)
 
-// Wired version injected in production, pure component for testing.
-const TaskList = ({ taskIds, TaskItem = TaskItem }) => (
-  <ul>{taskIds.map(({ id }) => <TaskItem key={id} taskId={id} />)}</ul>
-);
-
-// Queries and reads a live collection from the store.
-wireView('TaskList',
-  { taskIds: { path: 'tasks', where: ['status', '==', 'active'] } },
-  [],
-  TaskList,
-);
-
-// Global state — debugging and time travel.
-// --- store.ts
-export const store = createStore({
-  default: {
-    adapter: MemoryAdapter({
-      tasks: [
-        { id: 'task-1', path: 'tasks', title: 'Deploy', status: 'active' },
-        { id: 'task-2', path: 'tasks', title: 'Review', status: 'active' },
-      ],
-    }),
-    models:  { tasks: TaskModel },
-    mutates: {
-      archiveTask: createMutate({
-        action: 'ArchiveTask',
-        write:  (id) => ({ path: 'tasks', id, archived: true }),
-      }),
-    },
-  },
-});
+// Test — pass props directly
+render(<TaskItem task={{ id: '1', title: 'Deploy' }} archiveTask={vi.fn()} />)
 ```
 
-```swift
-import Antifragile
+## The minimum — Swift
 
-// Pure and stateless. Pass any data to test or preview in isolation.
+```swift
+// TaskItem.swift — no store, no @EnvironmentObject
 struct TaskItem: View {
   let task: Task
   let archiveTask: (String) -> Void
@@ -77,47 +53,15 @@ struct TaskItem: View {
   }
 }
 
-// Wires TaskItem to the store. Re-renders only when its own task changes.
+// Wires.swift — outside the view file
 wireView("TaskItem",
-  queries: { props in (task: ["path": "tasks", "id": props.taskId]) },
+  queries: { props in (task: ["collection": "tasks", "id": props.taskId]) },
   actions: ["archiveTask"],
   view: TaskItem.init
 )
 
-// Wired version injected in production, pure component for testing.
-struct TaskList: View {
-  let taskIds: [TaskId]
-  var TaskItem: (String) -> AnyView
-  var body: some View {
-    List(taskIds, id: \.self) { id in TaskItem(id) }
-  }
-}
-
-// Queries and reads a live collection from the store.
-wireView("TaskList",
-  queries: (taskIds: ["path": "tasks", "where": ["status", "==", "active"]]),
-  actions: [],
-  view: TaskList.init
-)
-
-// Global state — debugging and time travel.
-// --- store.swift
-let store = createStore {
-  BackingStore("default") {
-    adapter: MemoryAdapter(initial: [
-      "tasks": [
-        Task(id: "task-1", title: "Deploy", status: .active),
-        Task(id: "task-2", title: "Review", status: .active),
-      ]
-    ])
-    models:  [TaskModel.self]
-    mutates: [
-      createMutate("archiveTask",
-        write: { id in Write(path: "tasks", id: id, fields: ["archived": true]) }
-      )
-    ]
-  }
-}
+// Test — plain struct, no environment
+TaskItem(task: Task(id: "1", title: "Deploy"), archiveTask: { _ in })
 ```
 
 ---

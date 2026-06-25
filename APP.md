@@ -1,8 +1,8 @@
 ## Tagline
-### Apps that never lose state. Boundaries that can't be broken.
-Anti-fragile state management where every action is logged, every failure is debuggable,
-and UI is structurally forced to be stateless — no smart components, no logic in views,
-no assumptions needed when something breaks.
+### Views without data. Data tracks everything.
+Views display. They cannot break because they have nothing to break — no hooks, no state,
+no logic. Data tracks every change as a named record. When something breaks, the full log
+is there: every mutation, in order, ready for an AI to replay and fix.
 
 ---
 
@@ -20,52 +20,48 @@ test suites full of mock setup
 ---
 
 ## Why
-Every other state library treats writes as function calls — not data. You can't serialize
-a reducer. You can't replay a `useEffect`. You can't ship "what the app was doing" to your
-server when something breaks, because "what the app was doing" is a call stack, not a log.
+Hooks are where view bugs live. `useState`, `useEffect`, `useContext` — each one puts logic
+inside a view. Logic in a view can break. When it does there is no log, no changeset, no
+reproduction case. You get a stack trace and a guess.
 
-fiskal-pure makes every write a named data descriptor. The full action log is the full app
-history — always serializable, always replayable, always shippable on failure. Debugging
-becomes replaying a sequence of descriptors, not guessing from a stack trace.
+Antifragile removes hooks from views entirely. A view receives data and returns markup.
+It cannot have a bug because it has no behaviour. If something looks wrong, the problem is
+in the data layer — which is fully logged, serializable, and replayable by an AI. Every
+write is a named descriptor. The complete changeset ships with the failure automatically.
 
-At the same time, the architecture makes the wrong code structurally impossible. Components
-import nothing from the library. All wiring is external. `wireView` is the only connection
-point between a component and the store — and it lives outside the component file. Agents
-and developers physically cannot mix logic into views because there is no API available to
-do so inside a component.
+Mutations are injected into components as props, not imported. Testing means passing a
+function. No provider, no mock store, no setup.
 
 ---
 
 ## Core use cases
 
-**TypeScript — pure component + external wire**
+**The minimum: a view with no data, wired to the store**
 
-```ts
-// TaskItem.tsx — no store imports, no hooks, no context
-export function TaskItem({ task, archiveTask }) {
-  return (
-    <li>
-      <span>{task.title}</span>
-      <button onClick={() => archiveTask(task.id)}>Archive</button>
-    </li>
-  )
-}
+```tsx
+// TaskItem.tsx — no library imports, no hooks, just props
+const TaskItem = ({ task, archiveTask }) => (
+  <li>
+    <span>{task.title}</span>
+    <button onClick={() => archiveTask(task.id)}>Archive</button>
+  </li>
+)
 
-// wires.ts — all connection logic lives here, outside the component
+// wires.ts — the only place the store is touched
 wireView('TaskItem',
-  ({ taskId }) => ({ task: { path: 'tasks', id: taskId } }),
+  ({ taskId }) => ({ task: { collection: 'tasks', id: taskId } }),
   ['archiveTask'],
   TaskItem,
 )
 
-// Test — no providers, no setup, just props
+// Test — pass props directly, nothing else needed
 render(<TaskItem task={{ id: '1', title: 'Deploy' }} archiveTask={vi.fn()} />)
 ```
 
-**Swift — pure view + external wire**
+**The same view in Swift**
 
 ```swift
-// TaskItem.swift — no store, no @Query, no @EnvironmentObject
+// TaskItem.swift — no store, no @EnvironmentObject
 struct TaskItem: View {
   let task: Task
   let archiveTask: (String) -> Void
@@ -77,28 +73,25 @@ struct TaskItem: View {
   }
 }
 
-// Wires.swift — all connection logic lives here, outside the view
+// Wires.swift — outside the view file
 wireView("TaskItem",
-  queries: { props in (task: ["path": "tasks", "id": props.taskId]) },
+  queries: { props in (task: ["collection": "tasks", "id": props.taskId]) },
   actions: ["archiveTask"],
   view: TaskItem.init
 )
 
-// Test — plain struct init, no store, no environment
+// Test — plain struct, no environment
 TaskItem(task: Task(id: "1", title: "Deploy"), archiveTask: { _ in })
 ```
 
-**Action log on failure**
+**When something breaks — the log is always there**
 
 ```ts
-// Every write produces a descriptor — the log is always available
 store.history.log()
 // → [
-//     { action: 'AddTask',     write: { path: 'tasks', id: 'task-1', title: 'Deploy' }, at: 1719123456 },
-//     { action: 'ArchiveTask', write: { path: 'tasks', id: 'task-1', archived: true },  at: 1719123501 },
+//     { action: 'AddTask',     write: { collection: 'tasks', id: 'task-1', title: 'Deploy' } },
+//     { action: 'ArchiveTask', write: { collection: 'tasks', id: 'task-1', status: 'archived' } },
 //   ]
 
-// On error: ship the log, restore from last known-good snapshot
 store.history.back()   // undo last write
-store.history.goto(0)  // restore to initial state
 ```

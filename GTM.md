@@ -1,12 +1,16 @@
 # fiskal-pure
 
 ## Tagline
-Anti-fragile apps. No assumptions when something breaks.
+Views without data. Data tracks everything.
 
 ---
 
 ## What It Does
-fiskal-pure gives React and SwiftUI apps an anti-fragile state layer: every write is a named, serializable descriptor so the complete action log is always available — shippable to a server on failure, replayable without a repro case. All wiring is declared outside components, making it structurally impossible to mix logic into UI.
+Views display. They cannot break because they have no logic — no hooks, no state, nothing
+that can fail. Data tracks every change as a named, serializable write descriptor. When
+something breaks, the full changeset is already there: every mutation in order, shippable to
+a server, replayable by an AI. Mutations are injected into components as props so testing
+a component means passing a function — no provider, no mock store.
 
 ---
 
@@ -25,7 +29,12 @@ SwiftUI integration uses Combine and standard `@Observable` under the covers —
 ---
 
 ## Why
-Every other state library treats writes as function calls — opaque, un-serializable, gone the moment they run. fiskal-pure makes every write a data descriptor. The log is always there. When something breaks you have the exact sequence that caused it, not a stack trace and a guess. At the same time, components never import the library — all wiring lives outside — so agents and developers cannot mix business logic into views even if they try.
+Hooks are where view bugs live. Every `useState`, `useEffect`, and `useContext` is logic
+inside a view. Logic in a view can break, and when it does there is no log and no changeset
+— just a stack trace. Antifragile removes hooks from views entirely. A view is a function
+that receives data and returns markup; it cannot have a bug. Every write goes through a
+named data descriptor so the complete mutation log is always available — an AI can replay
+the exact sequence that caused the failure and fix it without a repro case.
 
 ---
 
