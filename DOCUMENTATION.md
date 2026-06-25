@@ -603,6 +603,19 @@ wireView('TaskItem',
 
 The view (`TaskItem`) is a pure function. It cannot have a data bug. The container (`wireView`) is a plain data declaration. It cannot have hidden behaviour. Together they are the simplest possible unit of UI.
 
+**Under the covers — `wireView` is `useRead` with props injection:**
+
+```tsx
+// What wireView builds for you:
+function WiredTaskItem({ taskId }) {
+  const task     = useRead({ path: 'tasks', id: taskId })
+  const archiveTask = store.mutates.archiveTask
+  return <TaskItem task={task} archiveTask={archiveTask} />
+}
+```
+
+`useRead` is the subscription primitive. It subscribes to the store, gets notified on every write to that path, and returns the current doc. `wireView` uses it internally for every key in the query spec, then assembles the props and renders the pure view. You can use `useRead` directly when a query is too dynamic to express as a static spec — but it should live in a container file, never inside the view itself.
+
 ---
 
 ## 5. Patterns
