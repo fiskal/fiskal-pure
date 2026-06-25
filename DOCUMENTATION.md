@@ -168,83 +168,49 @@ Then add `"Antifragile"` to your target's dependencies.
 import { createStore, createMutate, createWireView } from '@fiskal/antifragile'
 import { MemoryAdapter } from '@fiskal/antifragile/adapters/memory'
 
-// 1. Model — JSON schema + computed properties
-const TaskModel = {
-  schema: {
-    type: 'object',
-    properties: {
-      id:        { type: 'string' },
-      title:     { type: 'string', minLength: 1 },
-      status:    { type: 'string', enum: ['active', 'archived'] },
-      createdAt: { type: 'number' },
-    },
-    required: ['id', 'title', 'status', 'createdAt'],
-  },
-  compute: {
-    get createdAtDisplay(this: { createdAt: number }) {
-      return new Date(this.createdAt).toLocaleDateString(undefined, {
-        month: 'short', day: 'numeric', year: 'numeric',
-      })
-    },
-    get statusLabel(this: { status: string }) {
-      return this.status === 'active' ? 'In Progress' : 'Archived'
-    },
-  },
-}
-
-// 2. Store — one per app
-// Document ids are always full paths: 'collection/localId'
 export const store = createStore(
   MemoryAdapter({
     tasks: [
-      { id: 'tasks/task-1', title: 'Deploy to production', status: 'active', createdAt: Date.now() - 86_400_000 },
-      { id: 'tasks/task-2', title: 'Write release notes',  status: 'active', createdAt: Date.now() - 3_600_000 },
+      { id: 'task-1', title: 'Deploy', status: 'todo' },
+      { id: 'task-2', title: 'Review', status: 'todo' },
     ],
   }),
-  { models: { tasks: TaskModel } },
+  {
+    models: {
+      tasks: {
+        schema: {
+          type: 'object',
+          properties: {
+            id:     { type: 'string' },
+            title:  { type: 'string' },
+            status: { type: 'string' },
+          },
+        },
+      },
+    },
+  },
 )
 
-// 3. Mutates — named writes as plain data
-export const addTask = createMutate(store, {
-  write: ({ id, title }) => ({
-    id,  // full path: 'tasks/task-3'
-    fields: { title, status: 'active', createdAt: Date.now() },
-    merge: false,
+const setStatus = createMutate(store, {
+  write: ({ id, status }) => ({
+    collection: 'tasks', id, fields: { status }, merge: true,
   }),
 })
 
-export const archiveTask = createMutate(store, {
-  write: ({ id }) => ({ id, fields: { status: 'archived' }, merge: true }),
-})
-
-// 4. wireView factory — bound to this store and its mutates
-export const wireView = createWireView(store, { addTask, archiveTask })
+export const wireView = createWireView(store, { setStatus })
 ```
 
 **Step 2: Write a pure component (`TaskItem.tsx`)**
 
-This file has zero imports from `@fiskal/antifragile`. It is a plain function.
+Zero imports from `@fiskal/antifragile`. A plain function.
 
 ```tsx
 // TaskItem.tsx — zero library imports
-type Task = {
-  id: string
-  title: string
-  createdAtDisplay: string  // compute getter applied by the store
-  statusLabel: string
-}
-
-type Props = {
-  task: Task
-  archiveTask: (payload: { id: string }) => void
-}
-
-export const TaskItem = ({ task, archiveTask }: Props) => (
+export const TaskItem = ({ task, setStatus }) => (
   <li>
     <span>{task.title}</span>
-    <span>{task.createdAtDisplay}</span>
-    <span>{task.statusLabel}</span>
-    <button onClick={() => archiveTask({ id: task.id })}>Archive</button>
+    <span>{task.status}</span>
+    <button onClick={() => setStatus({ id: task.id, status: 'done' })}>Done</button>
   </li>
 )
 ```
@@ -252,39 +218,25 @@ export const TaskItem = ({ task, archiveTask }: Props) => (
 **Step 3: Wire it (`wires.ts`)**
 
 ```ts
-// wires.ts — the ONLY file that connects components to the store
 import { wireView } from './store'
 import { TaskItem } from './TaskItem'
-import { TaskList } from './TaskList'
 
-// Single-document subscription — id is the full path
 export const WiredTaskItem = wireView(
   'TaskItem',
-  ({ taskId }) => ({ task: { id: taskId } }),   // taskId = 'tasks/task-1'
-  ['archiveTask'],
+  ({ taskId }) => ({ task: { collection: 'tasks', id: taskId } }),
+  ['setStatus'],
   TaskItem,
-)
-
-// Collection subscription — 'collection' required for where queries
-export const WiredTaskList = wireView(
-  'TaskList',
-  { taskIds: { collection: 'tasks', where: { status: 'active' } } },
-  ['addTask'],
-  TaskList,
-  // WiredTaskItem is automatically injected into TaskList's TaskItem prop
 )
 ```
 
 **Step 4: Use it**
 
 ```tsx
-// App.tsx
-import { WiredTaskList } from './wires'
-
-export const App = () => <WiredTaskList />
+import { WiredTaskItem } from './wires'
+export const App = () => <WiredTaskItem taskId="task-1" />
 ```
 
-That is it. `TaskItem.tsx` and `TaskList.tsx` have zero library imports. All subscription management lives in `wires.ts`. All state logic lives in `store.ts`.
+That is it. `TaskItem.tsx` has zero library imports. All subscription logic lives in `wires.ts`. All state logic lives in `store.ts`.
 
 ---
 

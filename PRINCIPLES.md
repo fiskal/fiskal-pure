@@ -16,10 +16,10 @@ Antifragile is an offline-first state library without logic in views. Views beco
 
 ```tsx
 // TaskItem.tsx — no library imports, no hooks
-const TaskItem = ({ task, archiveTask }) => (
+const TaskItem = ({ task, setStatus }) => (
   <li>
     <span>{task.title}</span>
-    <button onClick={() => archiveTask(task.id)}>Archive</button>
+    <button onClick={() => setStatus({ id: task.id, status: 'done' })}>Done</button>
   </li>
 )
 
@@ -27,12 +27,12 @@ const TaskItem = ({ task, archiveTask }) => (
 import { wireView } from './store'
 wireView('TaskItem',
   ({ taskId }) => ({ task: { collection: 'tasks', id: taskId } }),
-  ['archiveTask'],
+  ['setStatus'],
   TaskItem,
 )
 
 // Test — pass props directly
-render(<TaskItem task={{ id: '1', title: 'Deploy' }} archiveTask={vi.fn()} />)
+render(<TaskItem task={{ id: '1', title: 'Deploy', status: 'todo' }} setStatus={vi.fn()} />)
 ```
 
 ## The minimum — Swift
@@ -41,11 +41,11 @@ render(<TaskItem task={{ id: '1', title: 'Deploy' }} archiveTask={vi.fn()} />)
 // TaskItem.swift — no store, no @EnvironmentObject
 struct TaskItem: View {
   let task: Task
-  let archiveTask: (String) -> Void
+  let setStatus: (String, String) -> Void
   var body: some View {
     HStack {
       Text(task.title)
-      Button("Archive") { archiveTask(task.id) }
+      Button("Done") { setStatus(task.id, "done") }
     }
   }
 }
@@ -53,12 +53,12 @@ struct TaskItem: View {
 // Wires.swift — outside the view file
 wireView("TaskItem",
   queries: { props in (task: ["collection": "tasks", "id": props.taskId]) },
-  actions: ["archiveTask"],
+  actions: ["setStatus"],
   view: TaskItem.init
 )
 
 // Test — plain struct, no environment
-TaskItem(task: Task(id: "1", title: "Deploy"), archiveTask: { _ in })
+TaskItem(task: Task(id: "1", title: "Deploy", status: "todo"), setStatus: { _, _ in })
 ```
 
 ---

@@ -39,23 +39,36 @@ one look at the log. The app gets stronger with every failure.
 **The minimum: a view with no data, wired to the store**
 
 ```tsx
-// TaskItem.tsx — no library imports, no hooks, just props
-const TaskItem = ({ task, archiveTask }) => (
+// TaskItem.tsx — no library imports, no hooks
+const TaskItem = ({ task, setStatus }) => (
   <li>
     <span>{task.title}</span>
-    <button onClick={() => archiveTask(task.id)}>Archive</button>
+    <span>{task.status}</span>
+    <button onClick={() => setStatus({ id: task.id, status: 'done' })}>Done</button>
   </li>
 )
 
-// wires.ts — the only place the store is touched
+// store.ts — model inline, one mutation
+const store = createStore(
+  MemoryAdapter({ tasks: [{ id: 'task-1', title: 'Deploy', status: 'todo' }] }),
+  { models: { tasks: { schema: { type: 'object',
+    properties: { id: { type: 'string' }, title: { type: 'string' }, status: { type: 'string' } },
+  } } } },
+)
+const setStatus = createMutate(store, {
+  write: ({ id, status }) => ({ collection: 'tasks', id, fields: { status }, merge: true }),
+})
+export const wireView = createWireView(store, { setStatus })
+
+// wires.ts — the only file that touches the store
 wireView('TaskItem',
   ({ taskId }) => ({ task: { collection: 'tasks', id: taskId } }),
-  ['archiveTask'],
+  ['setStatus'],
   TaskItem,
 )
 
 // Test — pass props directly, nothing else needed
-render(<TaskItem task={{ id: '1', title: 'Deploy' }} archiveTask={vi.fn()} />)
+render(<TaskItem task={{ id: '1', title: 'Deploy', status: 'todo' }} setStatus={vi.fn()} />)
 ```
 
 **The same view in Swift**
@@ -64,11 +77,12 @@ render(<TaskItem task={{ id: '1', title: 'Deploy' }} archiveTask={vi.fn()} />)
 // TaskItem.swift — no store, no @EnvironmentObject
 struct TaskItem: View {
   let task: Task
-  let archiveTask: (String) -> Void
+  let setStatus: (String, String) -> Void
   var body: some View {
     HStack {
       Text(task.title)
-      Button("Archive") { archiveTask(task.id) }
+      Text(task.status)
+      Button("Done") { setStatus(task.id, "done") }
     }
   }
 }
@@ -76,22 +90,19 @@ struct TaskItem: View {
 // Wires.swift — outside the view file
 wireView("TaskItem",
   queries: { props in (task: ["collection": "tasks", "id": props.taskId]) },
-  actions: ["archiveTask"],
+  actions: ["setStatus"],
   view: TaskItem.init
 )
 
 // Test — plain struct, no environment
-TaskItem(task: Task(id: "1", title: "Deploy"), archiveTask: { _ in })
+TaskItem(task: Task(id: "1", title: "Deploy", status: "todo"), setStatus: { _, _ in })
 ```
 
 **When something breaks — the log is always there**
 
 ```ts
 store.history.log()
-// → [
-//     { action: 'AddTask',     write: { collection: 'tasks', id: 'task-1', title: 'Deploy' } },
-//     { action: 'ArchiveTask', write: { collection: 'tasks', id: 'task-1', status: 'archived' } },
-//   ]
+// → [{ write: { collection: 'tasks', id: 'task-1', fields: { status: 'done' } } }]
 
 store.history.back()   // undo last write
 ```
