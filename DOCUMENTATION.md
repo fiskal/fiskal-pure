@@ -1064,3 +1064,89 @@ const setStatus = createMutate(store, {
 // The TaskItem container subscribes to tasks/task-1 only.
 // A write to tasks/task-2 does not reach it — no unnecessary re-render.
 ```
+
+---
+
+## Appendix · Architecture & data flow
+
+The shape is identical on both platforms; only the host idioms differ
+(`useRead` / React on TS, `@Query` / SwiftUI on Swift).
+
+```
+            PURE VIEW                         STORE
+        (zero lib imports)        ┌───────────────────────────────────┐
+       ┌────────────────┐         │   normalized in-memory cache      │
+       │  TaskItemView  │◄──props─┤   path → id → Doc                 │
+       │  (display only)│         │   immutable · structural sharing  │
+       └──────┬─────────┘         │      ▲                 │          │
+              │ event             │      │ notify(path)    │ getCache │
+              ▼                   │      │ (SYNC)          ▼          │
+       ┌────────────────┐  read   │  ┌───┴────────┐   ┌──────────┐    │
+       │ wireView       │◄────────┤  │ subscribers│   │  enrich  │    │
+       │ container      │         │  │ useRead /  │   │ compute  │    │
+       │ (useRead +     │─mutate─►│  │ @Query     │   │ closures │    │
+       │  bound actions)│         │  └────────────┘   └──────────┘    │
+       └────────────────┘         │                                   │
+                                  │  mutate pipeline                  │
+                                  │   1. validate(schema)             │
+                                  │   2. apply → cache      (SYNC)    │
+                                  │   3. notify subscribers (SYNC)    │
+                                  │   4. enqueue → adapter  (ASYNC)   │
+                                  └───────────────┬───────────────────┘
+                                                  │ async
+                                       ┌──────────▼──────────┐
+                                       │ ADAPTER (transport) │
+                                       │ subscribe() write() │
+                                       └──────────┬──────────┘
+                          success: onChange ──────┼────── failure
+                          → reconcile cache       │       → revert cache to
+                            (source of truth)     │         adapter truth +
+                                                  │         write errors/ doc
+                                       ┌──────────▼──────────┐
+                                       │   backing store     │
+                                       │ Firestore/CloudKit/ │
+                                       │ Gun/UserDefaults/…  │
+                                       └─────────────────────┘
+```
+
+### Write lifecycle (optimistic, sync-first, async-confirmed)
+
+Every write is applied **synchronously** to the normalized in-memory cache
+first, so the UI updates on the same tick. The remote adapter is contacted
+**asynchronously**. The cache is the optimistic projection; the adapter is the
+source of truth.
+
+```
+mutate(payload)
+   │
+   ├─ 1. validate against model.schema ───── fail ─► throw + errors/ doc (cache untouched)
+   │
+   ├─ 2. apply WriteDescriptor to cache  ◄── SYNCHRONOUS, optimistic
+   ├─ 3. notify(path) → subscribers re-render
+   │
+   └─ 4. adapter.write(descriptor)        ◄── ASYNCHRONOUS
+            │
+            ├─ ack  ─► adapter onChange reconciles cache with authoritative record
+            │
+            └─ nack ─► raise error, write errors/ doc,
+                       REVERT cache to whatever the adapter reports as truth
+```
+
+Conflict resolution today is **last-write-wins** — there is no field-level
+merge. The revert on failure restores the adapter's authoritative value, not a
+merge of local + remote. Field-level merge / CRDT convergence is a planned,
+opt-in strategy (it is not the default).
+
+### Read path
+
+```
+view needs data
+   │
+   └─ wireView/useRead resolves query ─► read from cache (SYNC) ─► enrich (apply
+        compute closures as plain props) ─► hand to view as props
+
+        three-state contract:
+          loading   — query not yet in cache        (TS undefined · Swift .loading)
+          not-found — single-doc query, id absent    (TS null      · Swift .missing)
+          loaded    — Doc, or Doc[] (possibly empty)  (TS value     · Swift .loaded)
+```
