@@ -32,8 +32,8 @@ const task2: Doc = { id: 'task-2', title: 'Read ADRs', done: true, tags: ['work'
 
 function seedCache() {
   let cache = emptyCache()
-  cache = applyWrite(cache, { collection: 'tasks', id: task1.id, fields: { title: task1.title, done: task1.done, tags: task1.tags }, merge: false })
-  cache = applyWrite(cache, { collection: 'tasks', id: task2.id, fields: { title: task2.title, done: task2.done, tags: task2.tags }, merge: false })
+  cache = applyWrite(cache, { path: 'tasks', id: task1.id, fields: { title: task1.title, done: task1.done, tags: task1.tags }, merge: false })
+  cache = applyWrite(cache, { path: 'tasks', id: task2.id, fields: { title: task2.title, done: task2.done, tags: task2.tags }, merge: false })
   return cache
 }
 
@@ -47,7 +47,7 @@ describe('structural sharing', () => {
     const before2 = getDoc(cache, 'tasks', 'task-2')
 
     const next = applyWrite(cache, {
-      collection: 'tasks',
+      path: 'tasks',
       id: 'task-1',
       fields: { done: true },
       merge: true,
@@ -62,7 +62,7 @@ describe('structural sharing', () => {
     const tasksBefore = cache.get('tasks')
 
     const next = applyWrite(cache, {
-      collection: 'notes',
+      path: 'notes',
       id: 'note-1',
       fields: { text: 'hello' },
       merge: false,
@@ -79,7 +79,7 @@ describe('structural sharing', () => {
     // but unrelated collections must be stable.
     const tasksBefore = cache.get('tasks')
     const next = applyWrite(cache, {
-      collection: 'notes',
+      path: 'notes',
       id: 'note-2',
       fields: { text: 'world' },
     })
@@ -188,21 +188,21 @@ describe('atomic ops', () => {
   describe('::increment', () => {
     it('increments an existing numeric field', () => {
       let cache = emptyCache()
-      cache = applyWrite(cache, { collection: 'counters', id: 'c1', fields: { n: 5 }, merge: false })
-      cache = applyWrite(cache, { collection: 'counters', id: 'c1', fields: { n: increment(3) }, merge: true })
+      cache = applyWrite(cache, { path: 'counters', id: 'c1', fields: { n: 5 }, merge: false })
+      cache = applyWrite(cache, { path: 'counters', id: 'c1', fields: { n: increment(3) }, merge: true })
       expect(getDoc(cache, 'counters', 'c1')?.n).toBe(8)
     })
 
     it('starts from 0 when field does not exist', () => {
       let cache = emptyCache()
-      cache = applyWrite(cache, { collection: 'counters', id: 'c2', fields: { n: increment(10) }, merge: true })
+      cache = applyWrite(cache, { path: 'counters', id: 'c2', fields: { n: increment(10) }, merge: true })
       expect(getDoc(cache, 'counters', 'c2')?.n).toBe(10)
     })
 
     it('handles negative increment (decrement)', () => {
       let cache = emptyCache()
-      cache = applyWrite(cache, { collection: 'counters', id: 'c3', fields: { n: 100 }, merge: false })
-      cache = applyWrite(cache, { collection: 'counters', id: 'c3', fields: { n: increment(-40) }, merge: true })
+      cache = applyWrite(cache, { path: 'counters', id: 'c3', fields: { n: 100 }, merge: false })
+      cache = applyWrite(cache, { path: 'counters', id: 'c3', fields: { n: increment(-40) }, merge: true })
       expect(getDoc(cache, 'counters', 'c3')?.n).toBe(60)
     })
   })
@@ -210,21 +210,21 @@ describe('atomic ops', () => {
   describe('::arrayUnion', () => {
     it('adds new values to an existing array', () => {
       let cache = emptyCache()
-      cache = applyWrite(cache, { collection: 'lists', id: 'l1', fields: { tags: ['a', 'b'] }, merge: false })
-      cache = applyWrite(cache, { collection: 'lists', id: 'l1', fields: { tags: arrayUnion('c', 'd') }, merge: true })
+      cache = applyWrite(cache, { path: 'lists', id: 'l1', fields: { tags: ['a', 'b'] }, merge: false })
+      cache = applyWrite(cache, { path: 'lists', id: 'l1', fields: { tags: arrayUnion('c', 'd') }, merge: true })
       expect(getDoc(cache, 'lists', 'l1')?.tags).toEqual(['a', 'b', 'c', 'd'])
     })
 
     it('does not add duplicate values', () => {
       let cache = emptyCache()
-      cache = applyWrite(cache, { collection: 'lists', id: 'l2', fields: { tags: ['a', 'b'] }, merge: false })
-      cache = applyWrite(cache, { collection: 'lists', id: 'l2', fields: { tags: arrayUnion('a', 'c') }, merge: true })
+      cache = applyWrite(cache, { path: 'lists', id: 'l2', fields: { tags: ['a', 'b'] }, merge: false })
+      cache = applyWrite(cache, { path: 'lists', id: 'l2', fields: { tags: arrayUnion('a', 'c') }, merge: true })
       expect(getDoc(cache, 'lists', 'l2')?.tags).toEqual(['a', 'b', 'c'])
     })
 
     it('starts from empty array when field does not exist', () => {
       let cache = emptyCache()
-      cache = applyWrite(cache, { collection: 'lists', id: 'l3', fields: { tags: arrayUnion('x') }, merge: true })
+      cache = applyWrite(cache, { path: 'lists', id: 'l3', fields: { tags: arrayUnion('x') }, merge: true })
       expect(getDoc(cache, 'lists', 'l3')?.tags).toEqual(['x'])
     })
   })
@@ -232,22 +232,22 @@ describe('atomic ops', () => {
   describe('::arrayRemove', () => {
     it('removes specified values from an array', () => {
       let cache = emptyCache()
-      cache = applyWrite(cache, { collection: 'lists', id: 'r1', fields: { tags: ['a', 'b', 'c'] }, merge: false })
-      cache = applyWrite(cache, { collection: 'lists', id: 'r1', fields: { tags: arrayRemove('b') }, merge: true })
+      cache = applyWrite(cache, { path: 'lists', id: 'r1', fields: { tags: ['a', 'b', 'c'] }, merge: false })
+      cache = applyWrite(cache, { path: 'lists', id: 'r1', fields: { tags: arrayRemove('b') }, merge: true })
       expect(getDoc(cache, 'lists', 'r1')?.tags).toEqual(['a', 'c'])
     })
 
     it('is a no-op when value is not present', () => {
       let cache = emptyCache()
-      cache = applyWrite(cache, { collection: 'lists', id: 'r2', fields: { tags: ['a', 'b'] }, merge: false })
-      cache = applyWrite(cache, { collection: 'lists', id: 'r2', fields: { tags: arrayRemove('z') }, merge: true })
+      cache = applyWrite(cache, { path: 'lists', id: 'r2', fields: { tags: ['a', 'b'] }, merge: false })
+      cache = applyWrite(cache, { path: 'lists', id: 'r2', fields: { tags: arrayRemove('z') }, merge: true })
       expect(getDoc(cache, 'lists', 'r2')?.tags).toEqual(['a', 'b'])
     })
 
     it('produces empty array when all values removed', () => {
       let cache = emptyCache()
-      cache = applyWrite(cache, { collection: 'lists', id: 'r3', fields: { tags: ['a'] }, merge: false })
-      cache = applyWrite(cache, { collection: 'lists', id: 'r3', fields: { tags: arrayRemove('a') }, merge: true })
+      cache = applyWrite(cache, { path: 'lists', id: 'r3', fields: { tags: ['a'] }, merge: false })
+      cache = applyWrite(cache, { path: 'lists', id: 'r3', fields: { tags: arrayRemove('a') }, merge: true })
       expect(getDoc(cache, 'lists', 'r3')?.tags).toEqual([])
     })
   })
@@ -255,8 +255,8 @@ describe('atomic ops', () => {
   describe('::delete', () => {
     it('removes a field from the document', () => {
       let cache = emptyCache()
-      cache = applyWrite(cache, { collection: 'docs', id: 'd1', fields: { title: 'hello', secret: 'hidden' }, merge: false })
-      cache = applyWrite(cache, { collection: 'docs', id: 'd1', fields: { secret: deleteField() }, merge: true })
+      cache = applyWrite(cache, { path: 'docs', id: 'd1', fields: { title: 'hello', secret: 'hidden' }, merge: false })
+      cache = applyWrite(cache, { path: 'docs', id: 'd1', fields: { secret: deleteField() }, merge: true })
       const doc = getDoc(cache, 'docs', 'd1')
       expect(doc?.title).toBe('hello')
       expect(doc).not.toHaveProperty('secret')
@@ -264,8 +264,8 @@ describe('atomic ops', () => {
 
     it('is a no-op when field does not exist', () => {
       let cache = emptyCache()
-      cache = applyWrite(cache, { collection: 'docs', id: 'd2', fields: { title: 'hello' }, merge: false })
-      cache = applyWrite(cache, { collection: 'docs', id: 'd2', fields: { nonexistent: deleteField() }, merge: true })
+      cache = applyWrite(cache, { path: 'docs', id: 'd2', fields: { title: 'hello' }, merge: false })
+      cache = applyWrite(cache, { path: 'docs', id: 'd2', fields: { nonexistent: deleteField() }, merge: true })
       expect(getDoc(cache, 'docs', 'd2')?.title).toBe('hello')
     })
   })
@@ -273,7 +273,7 @@ describe('atomic ops', () => {
   describe('document-level delete', () => {
     it('removes the entire document', () => {
       let cache = seedCache()
-      cache = applyWrite(cache, { collection: 'tasks', id: 'task-1', delete: true })
+      cache = applyWrite(cache, { path: 'tasks', id: 'task-1', delete: true })
       expect(getDoc(cache, 'tasks', 'task-1')).toBeUndefined()
       // Other doc untouched
       expect(getDoc(cache, 'tasks', 'task-2')?.id).toBe('task-2')
@@ -281,7 +281,7 @@ describe('atomic ops', () => {
 
     it('is a no-op for a non-existent document', () => {
       const cache = seedCache()
-      const next = applyWrite(cache, { collection: 'tasks', id: 'ghost', delete: true })
+      const next = applyWrite(cache, { path: 'tasks', id: 'ghost', delete: true })
       expect(next).toBe(cache) // same reference — nothing changed
     })
   })
@@ -290,8 +290,8 @@ describe('atomic ops', () => {
     it('applies multiple descriptors in order', () => {
       let cache = emptyCache()
       const descs: WriteDescriptor[] = [
-        { collection: 'items', id: 'i1', fields: { count: 1 }, merge: false },
-        { collection: 'items', id: 'i1', fields: { count: increment(9) }, merge: true },
+        { path: 'items', id: 'i1', fields: { count: 1 }, merge: false },
+        { path: 'items', id: 'i1', fields: { count: increment(9) }, merge: true },
       ]
       cache = applyWrites(cache, descs)
       expect(getDoc(cache, 'items', 'i1')?.count).toBe(10)

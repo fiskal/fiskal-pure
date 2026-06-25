@@ -1,4 +1,4 @@
-import { createStore, createMutate, createWireView } from '@fiskal/antifragile'
+import { createStore, createWireView } from '@fiskal/antifragile'
 import { MemoryAdapter } from '@fiskal/antifragile/adapters/memory'
 import type { Model } from '@fiskal/antifragile'
 
@@ -9,9 +9,6 @@ import type { Model } from '@fiskal/antifragile'
 type TaskDoc = { createdAt: number; status: string }
 
 const taskCompute: Model['compute'] = {
-  // TypeScript does not allow `this` parameters on accessor getters.
-  // Use function form and cast — the library applies these via Object.defineProperties,
-  // so `this` is the doc at call time.
   get createdAtDisplay() {
     const self = this as unknown as TaskDoc
     return new Date(self.createdAt).toLocaleDateString(undefined, {
@@ -24,22 +21,8 @@ const taskCompute: Model['compute'] = {
   },
 }
 
-export const TaskModel: Model = {
-  schema: {
-    type: 'object',
-    properties: {
-      id:        { type: 'string' },
-      title:     { type: 'string', minLength: 1 },
-      status:    { type: 'string', enum: ['active', 'archived'] },
-      createdAt: { type: 'number' },
-    },
-    required: ['id', 'title', 'status', 'createdAt'],
-  },
-  compute: taskCompute,
-}
-
 // ---------------------------------------------------------------------------
-// Store — seed data, model, mutates all in one place
+// Store — seed data, model, and mutates all inline
 // ---------------------------------------------------------------------------
 
 export const store = createStore(
@@ -50,30 +33,41 @@ export const store = createStore(
       { id: 'task-3', title: 'Update dependencies',  status: 'active', createdAt: Date.now()              },
     ],
   }),
-  { models: { tasks: TaskModel } },
+  {
+    models: {
+      tasks: {
+        schema: {
+          type: 'object',
+          properties: {
+            id:        { type: 'string' },
+            title:     { type: 'string', minLength: 1 },
+            status:    { type: 'string', enum: ['active', 'archived'] },
+            createdAt: { type: 'number' },
+          },
+          required: ['id', 'title', 'status', 'createdAt'],
+        },
+        compute: taskCompute,
+      },
+    },
+    mutates: {
+      addTask: {
+        write: ({ id, title }: { id: string; title: string }) => ({
+          path: 'tasks',
+          id,
+          fields: { title, status: 'active', createdAt: Date.now() },
+          merge: false as const,
+        }),
+      },
+      archiveTask: {
+        write: ({ id }: { id: string }) => ({
+          path: 'tasks',
+          id,
+          fields: { status: 'archived' },
+          merge: true as const,
+        }),
+      },
+    },
+  },
 )
 
-export const addTask = createMutate<{ id: string; title: string }>(store, {
-  write: ({ id, title }: { id: string; title: string }) => ({
-    collection: 'tasks',
-    id,
-    fields: { title, status: 'active', createdAt: Date.now() },
-    merge: false as const,
-  }),
-})
-
-export const archiveTask = createMutate<{ id: string }>(store, {
-  write: ({ id }: { id: string }) => ({
-    collection: 'tasks',
-    id,
-    fields: { status: 'archived' },
-    merge: true as const,
-  }),
-})
-
-// wireView bound to this store and its mutates — the only connection point
-type AnyMutate = (payload?: Record<string, unknown>) => Promise<unknown>
-export const wireView = createWireView(store, {
-  addTask:     addTask as unknown as AnyMutate,
-  archiveTask: archiveTask as unknown as AnyMutate,
-})
+export const wireView = createWireView(store)

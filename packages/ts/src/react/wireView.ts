@@ -11,14 +11,13 @@
 
 import { createElement, useEffect, useRef, useState } from 'react'
 import type { ComponentType, ReactElement } from 'react'
-import type { Doc, Query, StoreInstance } from '../types.js'
+import type { Doc, MutateFn, Query, StoreInstance } from '../types.js'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 type QuerySpec = {
-  collection?: string
   path?: string
   id?: string
   where?: Record<string, unknown>
@@ -27,7 +26,6 @@ type QuerySpec = {
 
 type QueryMap = Record<string, QuerySpec>
 type QueryFn<P> = (props: P) => QueryMap
-type MutateFn = (payload?: Record<string, unknown>) => Promise<unknown>
 
 // ---------------------------------------------------------------------------
 // createWireView
@@ -35,7 +33,7 @@ type MutateFn = (payload?: Record<string, unknown>) => Promise<unknown>
 
 export function createWireView(
   store: StoreInstance,
-  mutates: Record<string, MutateFn>,
+  mutates?: Record<string, MutateFn>,
 ): <P extends Record<string, unknown>>(
   name: string,
   queries: QueryMap | QueryFn<P>,
@@ -43,25 +41,26 @@ export function createWireView(
   component: ComponentType<P>,
 ) => ComponentType<Partial<P>> {
   const registry = new Map<string, ComponentType<Record<string, unknown>>>()
+  const allMutates = { ...store.mutates, ...(mutates ?? {}) }
 
   function specToQuery(spec: QuerySpec): Query {
     const extras = {
       ...(spec.where !== undefined ? { where: spec.where } : {}),
       ...(spec.fields !== undefined ? { fields: spec.fields } : {}),
     }
-    // Path-based id: 'tasks/task-1' encodes collection + local id in one string.
-    // When no explicit collection/path is given, split on the first slash.
-    if (spec.id !== undefined && spec.collection === undefined && spec.path === undefined) {
+    // Path-based id: 'tasks/task-1' encodes path + local id in one string.
+    // When no explicit path is given, split on the first slash.
+    if (spec.id !== undefined && spec.path === undefined) {
       const slash = spec.id.indexOf('/')
       if (slash !== -1) {
-        return { ...extras, collection: spec.id.slice(0, slash), id: spec.id.slice(slash + 1) }
+        return { ...extras, path: spec.id.slice(0, slash), id: spec.id.slice(slash + 1) }
       }
     }
-    const collection = spec.path ?? spec.collection ?? ''
+    const path = spec.path ?? ''
     if (spec.id !== undefined) {
-      return { ...extras, collection, id: spec.id }
+      return { ...extras, path, id: spec.id }
     }
-    return { ...extras, collection }
+    return { ...extras, path }
   }
 
   function wireView<P extends Record<string, unknown>>(
@@ -85,11 +84,11 @@ export function createWireView(
           const q = specToQuery(spec)
           const cache = store.getCache()
           if (q.id !== undefined) {
-            const doc = cache.get(q.collection)?.get(q.id)
-            initial[key] = doc ? store.enrich(q.collection, doc) : null
+            const doc = cache.get(q.path)?.get(q.id)
+            initial[key] = doc ? store.enrich(q.path, doc) : null
           } else {
-            const col = cache.get(q.collection)
-            initial[key] = col ? Array.from(col.values()).map(d => store.enrich(q.collection, d)) : []
+            const col = cache.get(q.path)
+            initial[key] = col ? Array.from(col.values()).map(d => store.enrich(q.path, d)) : []
           }
         }
         return initial
@@ -100,7 +99,7 @@ export function createWireView(
         const unsubs = Object.entries(resolvedMap).map(([key, spec]) => {
           const q = specToQuery(spec)
           return store.adapter.subscribe(q, (docs: Doc[]) => {
-            const enriched = docs.map(d => store.enrich(q.collection, d))
+            const enriched = docs.map(d => store.enrich(q.path, d))
             const value: Doc | Doc[] | null =
               spec.id !== undefined
                 ? enriched.length > 0 ? (enriched[0] ?? null) : null
@@ -113,7 +112,7 @@ export function createWireView(
       }, [mapKey])
 
       const actions = actionNames.reduce<Record<string, MutateFn>>(
-        (acc, n) => ({ ...acc, [n]: mutates[n] ?? (async () => {}) }),
+        (acc, n) => ({ ...acc, [n]: allMutates[n] ?? (async () => {}) }),
         {},
       )
 

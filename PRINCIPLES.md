@@ -16,6 +16,8 @@ Antifragile is an offline-first state library without logic in views. Views beco
 
 ```tsx
 // TaskItem.tsx — no library imports, no hooks
+import { wireView } from './store'
+
 const TaskItem = ({ task, setStatus }) => (
   <li>
     <span>{task.title}</span>
@@ -23,15 +25,14 @@ const TaskItem = ({ task, setStatus }) => (
   </li>
 )
 
-// wires.ts — the only file that touches the store
-import { wireView } from './store'
+// Wire lives in the same file — nothing to export
 wireView('TaskItem',
-  ({ taskId }) => ({ task: { collection: 'tasks', id: taskId } }),
+  ({ taskId }) => ({ task: { path: 'tasks', id: taskId } }),
   ['setStatus'],
   TaskItem,
 )
 
-// Test — pass props directly
+// Test — pass props directly, nothing else needed
 render(<TaskItem task={{ id: '1', title: 'Deploy', status: 'todo' }} setStatus={vi.fn()} />)
 ```
 
@@ -39,6 +40,8 @@ render(<TaskItem task={{ id: '1', title: 'Deploy', status: 'todo' }} setStatus={
 
 ```swift
 // TaskItem.swift — no store, no @EnvironmentObject
+import Antifragile
+
 struct TaskItem: View {
   let task: Task
   let setStatus: (String, String) -> Void
@@ -50,9 +53,9 @@ struct TaskItem: View {
   }
 }
 
-// Wires.swift — outside the view file
+// Wire lives in the same file
 wireView("TaskItem",
-  queries: { props in (task: ["collection": "tasks", "id": props.taskId]) },
+  queries: { props in (task: ["path": "tasks", "id": props.taskId]) },
   actions: ["setStatus"],
   view: TaskItem.init
 )

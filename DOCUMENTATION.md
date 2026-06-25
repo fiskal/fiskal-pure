@@ -31,23 +31,25 @@ Views receive data as props and return markup. If something looks wrong on scree
 ### The minimum
 
 ```tsx
-// The view — no imports, no hooks
-const TaskItem = ({ task, archiveTask }) => (
+// TaskItem.tsx — no library imports, no hooks
+import { wireView } from './store'
+
+const TaskItem = ({ task, setStatus }) => (
   <li>
     <span>{task.title}</span>
-    <button onClick={() => archiveTask(task.id)}>Archive</button>
+    <button onClick={() => setStatus({ id: task.id, status: 'done' })}>Done</button>
   </li>
 )
 
-// The wire — outside the component, in store.ts or wires.ts
+// Wire lives in the same file — nothing to export
 wireView('TaskItem',
-  ({ taskId }) => ({ task: { collection: 'tasks', id: taskId } }),
-  ['archiveTask'],
+  ({ taskId }) => ({ task: { path: 'tasks', id: taskId } }),
+  ['setStatus'],
   TaskItem,
 )
 
-// The test — just props, nothing else
-render(<TaskItem task={{ id: '1', title: 'Deploy' }} archiveTask={vi.fn()} />)
+// Test — just props, nothing else
+render(<TaskItem task={{ id: '1', title: 'Deploy', status: 'todo' }} setStatus={vi.fn()} />)
 ```
 
 ### The two problems it solves
@@ -165,7 +167,7 @@ Then add `"Antifragile"` to your target's dependencies.
 **Step 1: Create the store (`store.ts`)**
 
 ```ts
-import { createStore, createMutate, createWireView } from '@fiskal/antifragile'
+import { createStore, createWireView } from '@fiskal/antifragile'
 import { MemoryAdapter } from '@fiskal/antifragile/adapters/memory'
 
 export const store = createStore(
@@ -188,55 +190,48 @@ export const store = createStore(
         },
       },
     },
+    mutates: {
+      archiveTask: {
+        write: ({ id }) => ({ path: 'tasks', id, fields: { status: 'archived' }, merge: true }),
+      },
+    },
   },
 )
 
-const setStatus = createMutate(store, {
-  write: ({ id, status }) => ({
-    collection: 'tasks', id, fields: { status }, merge: true,
-  }),
-})
-
-export const wireView = createWireView(store, { setStatus })
+export const wireView = createWireView(store)
 ```
 
-**Step 2: Write a pure component (`TaskItem.tsx`)**
-
-Zero imports from `@fiskal/antifragile`. A plain function.
+**Step 2: Write a pure component — wire lives in the same file**
 
 ```tsx
 // TaskItem.tsx — zero library imports
-export const TaskItem = ({ task, setStatus }) => (
+import { wireView } from './store'
+
+export const TaskItem = ({ task, archiveTask }) => (
   <li>
     <span>{task.title}</span>
     <span>{task.status}</span>
-    <button onClick={() => setStatus({ id: task.id, status: 'done' })}>Done</button>
+    <button onClick={() => archiveTask({ id: task.id })}>Archive</button>
   </li>
 )
-```
 
-**Step 3: Wire it (`wires.ts`)**
-
-```ts
-import { wireView } from './store'
-import { TaskItem } from './TaskItem'
-
-export const WiredTaskItem = wireView(
-  'TaskItem',
-  ({ taskId }) => ({ task: { collection: 'tasks', id: taskId } }),
-  ['setStatus'],
+// Wire declared right below — no separate file, no export needed
+wireView('TaskItem',
+  ({ taskId }) => ({ task: { path: 'tasks', id: taskId } }),
+  ['archiveTask'],
   TaskItem,
 )
 ```
 
-**Step 4: Use it**
+**Step 3: Use it**
 
 ```tsx
-import { WiredTaskItem } from './wires'
-export const App = () => <WiredTaskItem taskId="task-1" />
+// App.tsx — wired components are injected by name, no import of WiredTaskItem
+import { WiredTaskList } from './TaskList'
+export const App = () => <WiredTaskList />
 ```
 
-That is it. `TaskItem.tsx` has zero library imports. All subscription logic lives in `wires.ts`. All state logic lives in `store.ts`.
+That is it. `TaskItem.tsx` imports only `wireView` from `store.ts` — nothing from the library itself. All state and mutation logic lives in `store.ts`.
 
 ---
 

@@ -40,35 +40,37 @@ one look at the log. The app gets stronger with every failure.
 
 ```tsx
 // TaskItem.tsx — no library imports, no hooks
-const TaskItem = ({ task, setStatus }) => (
+const TaskItem = ({ task, archiveTask }) => (
   <li>
     <span>{task.title}</span>
     <span>{task.status}</span>
-    <button onClick={() => setStatus({ id: task.id, status: 'done' })}>Done</button>
+    <button onClick={() => archiveTask({ id: task.id })}>Archive</button>
   </li>
 )
 
-// store.ts — model inline, one mutation
+// store.ts — model and mutate inline
 const store = createStore(
   MemoryAdapter({ tasks: [{ id: 'task-1', title: 'Deploy', status: 'todo' }] }),
-  { models: { tasks: { schema: { type: 'object',
-    properties: { id: { type: 'string' }, title: { type: 'string' }, status: { type: 'string' } },
-  } } } },
+  {
+    models: { tasks: { schema: { type: 'object',
+      properties: { id: { type: 'string' }, title: { type: 'string' }, status: { type: 'string' } },
+    } } },
+    mutates: {
+      archiveTask: { write: ({ id }) => ({ path: 'tasks', id, fields: { status: 'archived' }, merge: true }) },
+    },
+  },
 )
-const setStatus = createMutate(store, {
-  write: ({ id, status }) => ({ collection: 'tasks', id, fields: { status }, merge: true }),
-})
-export const wireView = createWireView(store, { setStatus })
+export const wireView = createWireView(store)
 
-// wires.ts — the only file that touches the store
+// Wire lives in the same file as the component — no export needed
 wireView('TaskItem',
-  ({ taskId }) => ({ task: { collection: 'tasks', id: taskId } }),
-  ['setStatus'],
+  ({ taskId }) => ({ task: { path: 'tasks', id: taskId } }),
+  ['archiveTask'],
   TaskItem,
 )
 
 // Test — pass props directly, nothing else needed
-render(<TaskItem task={{ id: '1', title: 'Deploy', status: 'todo' }} setStatus={vi.fn()} />)
+render(<TaskItem task={{ id: '1', title: 'Deploy', status: 'todo' }} archiveTask={vi.fn()} />)
 ```
 
 **The same view in Swift**
@@ -77,25 +79,25 @@ render(<TaskItem task={{ id: '1', title: 'Deploy', status: 'todo' }} setStatus={
 // TaskItem.swift — no store, no @EnvironmentObject
 struct TaskItem: View {
   let task: Task
-  let setStatus: (String, String) -> Void
+  let archiveTask: (String) -> Void
   var body: some View {
     HStack {
       Text(task.title)
       Text(task.status)
-      Button("Done") { setStatus(task.id, "done") }
+      Button("Archive") { archiveTask(task.id) }
     }
   }
 }
 
-// Wires.swift — outside the view file
+// Wire lives in the same file
 wireView("TaskItem",
-  queries: { props in (task: ["collection": "tasks", "id": props.taskId]) },
-  actions: ["setStatus"],
+  queries: { props in (task: ["path": "tasks", "id": props.taskId]) },
+  actions: ["archiveTask"],
   view: TaskItem.init
 )
 
 // Test — plain struct, no environment
-TaskItem(task: Task(id: "1", title: "Deploy", status: "todo"), setStatus: { _, _ in })
+TaskItem(task: Task(id: "1", title: "Deploy", status: "todo"), archiveTask: { _, _ in })
 ```
 
 **When something breaks — the log is always there**

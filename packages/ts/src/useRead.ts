@@ -27,14 +27,14 @@ function selectDocs(store: StoreInstance, query: Query): Doc[] | undefined {
   const cache = store.getCache()
 
   if (query.id) {
-    const doc = cache.get(query.collection)?.get(query.id)
+    const doc = cache.get(query.path)?.get(query.id)
     if (!doc) return undefined
     return applyProjection([doc], query.fields)
   }
 
   // Only return results if the collection exists; undefined means "still loading"
-  if (!cache.has(query.collection)) return undefined
-  const col = cache.get(query.collection)!
+  if (!cache.has(query.path)) return undefined
+  const col = cache.get(query.path)!
   const docs = filterDocs(col, query.where)
   return applyProjection(docs, query.fields)
 }
@@ -90,7 +90,7 @@ export function useRead(
 
     return unsub
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store, query.collection, query.id ?? '', whereKey, fieldsKey])
+  }, [store, query.path, query.id ?? '', whereKey, fieldsKey])
 
   return result
 }

@@ -37,7 +37,7 @@ describe('errors collection on write failure', () => {
     const archiveTask = createMutate(store, {
       action: 'ArchiveTask',
       write: ({ id }) => ({
-        collection: 'tasks',
+        path: 'tasks',
         id: String(id),
         fields: { status: 'archived' },
         merge: true,
@@ -62,7 +62,7 @@ describe('errors collection on write failure', () => {
 
     const doThing = createMutate(store, {
       action: 'DoThing',
-      write: () => ({ collection: 'things', id: 'x', fields: { v: 1 } }),
+      write: () => ({ path: 'things', id: 'x', fields: { v: 1 } }),
     })
 
     await doThing({}).catch(() => {})
@@ -78,7 +78,7 @@ describe('errors collection on write failure', () => {
 
     const doThing = createMutate(store, {
       action: 'PermissionTest',
-      write: () => ({ collection: 'things', id: 'x', fields: { v: 1 } }),
+      write: () => ({ path: 'things', id: 'x', fields: { v: 1 } }),
     })
 
     await doThing({}).catch(() => {})
@@ -93,7 +93,7 @@ describe('errors collection on write failure', () => {
     const doThing = createMutate(store, {
       action: 'RecordPayload',
       write: ({ id, title }) => ({
-        collection: 'things',
+        path: 'things',
         id: String(id),
         fields: { title },
         merge: false,
@@ -111,7 +111,7 @@ describe('errors collection on write failure', () => {
     const store = createStore(MemoryAdapter())
     const doThing = createMutate(store, {
       action: 'GoodWrite',
-      write: () => ({ collection: 'things', id: 'x', fields: { v: 1 } }),
+      write: () => ({ path: 'things', id: 'x', fields: { v: 1 } }),
     })
 
     await doThing({})
@@ -128,7 +128,7 @@ describe('errors collection on write failure', () => {
     const archiveTask = createMutate(store, {
       action: 'ArchiveTask',
       write: ({ id }) => ({
-        collection: 'tasks',
+        path: 'tasks',
         id: String(id),
         fields: { status: 'archived' },
         merge: true,
@@ -149,7 +149,7 @@ describe('errors collection on write failure', () => {
 
     const doThing = createMutate(store, {
       action: 'AccumulateErrors',
-      write: ({ id }) => ({ collection: 'x', id: String(id), fields: { v: 1 } }),
+      write: ({ id }) => ({ path: 'x', id: String(id), fields: { v: 1 } }),
     })
 
     await doThing({ id: 'a' }).catch(() => {})

@@ -25,14 +25,22 @@ interface Subscriber {
 
 function docsForQuery(cache: CacheState, query: Query): Doc[] {
   if (query.id) {
-    const doc = cache.get(query.collection)?.get(query.id)
+    const doc = cache.get(query.path)?.get(query.id)
     return doc ? [doc] : []
   }
-  return filterDocs(getCollection(cache, query.collection), query.where)
+  return filterDocs(getCollection(cache, query.path), query.where)
 }
 
-export function MemoryAdapter(): Adapter {
+export function MemoryAdapter(initial?: Record<string, Doc[]>): Adapter {
   let cache: CacheState = emptyCache()
+  if (initial) {
+    for (const [collection, docs] of Object.entries(initial)) {
+      for (const doc of docs) {
+        const { id, ...fields } = doc
+        cache = applyWrite(cache, { path: collection, id, fields, merge: false })
+      }
+    }
+  }
   const subscribers: Set<Subscriber> = new Set()
 
   function notify(): void {
@@ -99,7 +107,7 @@ export function createMemoryStore(): MemoryStore {
   function seedCollection(collection: string, docs: Doc[]): void {
     for (const doc of docs) {
       cache = applyWrite(cache, {
-        collection,
+        path: collection,
         id: doc.id,
         fields: Object.fromEntries(Object.entries(doc).filter(([k]) => k !== 'id')),
         merge: false,

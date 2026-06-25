@@ -110,7 +110,7 @@ const WiredTaskItem = wireView(
   'TaskItem',
   ({ taskId }: { taskId: string }) => ({
     task: {
-      collection: 'tasks',
+      path: 'tasks',
       id: taskId,
       // Subscribe to only the fields this component renders.
       // Prevents re-renders when unrelated fields (e.g. internal flags) change.
@@ -126,7 +126,7 @@ const WiredTaskItem = wireView(
 // and it is already registered in the same wireView factory.
 const WiredTaskList = wireView(
   'TaskList',
-  { taskIds: { collection: 'tasks', where: { status: 'active' } } },
+  { taskIds: { path: 'tasks', where: { status: 'active' } } },
   [],
   TaskList as AnyComponent,
 )

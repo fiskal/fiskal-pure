@@ -50,7 +50,7 @@ describe('loading state', () => {
     const store = createStore(asyncAdapter)
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks' }),
+      useRead(store, { path: 'tasks' }),
     )
     // MemoryAdapter fires synchronously; async adapter does not
     expect(result.current).toBeUndefined()
@@ -67,7 +67,7 @@ describe('single-doc query (with id)', () => {
     // No docs seeded
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks', id: 'does-not-exist' }),
+      useRead(store, { path: 'tasks', id: 'does-not-exist' }),
     )
     expect(result.current).toBeNull()
   })
@@ -77,7 +77,7 @@ describe('single-doc query (with id)', () => {
     seed(store, { tasks: [mkDoc({ id: 'found', title: 'Found it' })] })
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks', id: 'found' }),
+      useRead(store, { path: 'tasks', id: 'found' }),
     )
     const doc = result.current as Doc
     expect(doc?.id).toBe('found')
@@ -89,14 +89,14 @@ describe('single-doc query (with id)', () => {
     seed(store, { tasks: [mkDoc({ id: 'live', done: false })] })
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks', id: 'live' }),
+      useRead(store, { path: 'tasks', id: 'live' }),
     )
 
     expect((result.current as Doc)?.done).toBe(false)
 
     await act(async () => {
       await store.adapter.write({
-        collection: 'tasks',
+        path: 'tasks',
         id: 'live',
         fields: { done: true },
         merge: true,
@@ -111,13 +111,13 @@ describe('single-doc query (with id)', () => {
     seed(store, { tasks: [mkDoc({ id: 'del-me' })] })
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks', id: 'del-me' }),
+      useRead(store, { path: 'tasks', id: 'del-me' }),
     )
 
     expect(result.current).not.toBeNull()
 
     await act(async () => {
-      await store.adapter.write({ collection: 'tasks', id: 'del-me', delete: true })
+      await store.adapter.write({ path: 'tasks', id: 'del-me', delete: true })
     })
 
     expect(result.current).toBeNull()
@@ -139,7 +139,7 @@ describe('collection query', () => {
     })
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks' }),
+      useRead(store, { path: 'tasks' }),
     )
     const docs = result.current as Doc[]
     expect(Array.isArray(docs)).toBe(true)
@@ -150,7 +150,7 @@ describe('collection query', () => {
     const store = makeStore()
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks' }),
+      useRead(store, { path: 'tasks' }),
     )
     expect(result.current).toEqual([])
   })
@@ -172,7 +172,7 @@ describe('where filter', () => {
     })
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks', where: { done: false } }),
+      useRead(store, { path: 'tasks', where: { done: false } }),
     )
     const docs = result.current as Doc[]
     expect(docs).toHaveLength(2)
@@ -184,7 +184,7 @@ describe('where filter', () => {
     seed(store, { tasks: [mkDoc({ id: 'w4', done: true })] })
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks', where: { done: false } }),
+      useRead(store, { path: 'tasks', where: { done: false } }),
     )
     expect(result.current).toEqual([])
   })
@@ -202,7 +202,7 @@ describe('fields projection', () => {
     })
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks', fields: ['title'] }),
+      useRead(store, { path: 'tasks', fields: ['title'] }),
     )
     const docs = result.current as Doc[]
     expect(docs[0]).toEqual({ id: 'p1', title: 'Secret project' })
@@ -214,7 +214,7 @@ describe('fields projection', () => {
     seed(store, { tasks: [mkDoc({ id: 'p2', title: 'Hello', category: 'personal' })] })
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks', id: 'p2', fields: ['category'] }),
+      useRead(store, { path: 'tasks', id: 'p2', fields: ['category'] }),
     )
     const doc = result.current as Doc
     expect(doc).toEqual({ id: 'p2', category: 'personal' })
@@ -234,7 +234,7 @@ describe('structural equality (no unnecessary re-renders)', () => {
     })
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks' }),
+      useRead(store, { path: 'tasks' }),
     )
 
     const firstRef = result.current
@@ -242,7 +242,7 @@ describe('structural equality (no unnecessary re-renders)', () => {
     // Write an unrelated doc — should not trigger re-render for tasks
     await act(async () => {
       await store.adapter.write({
-        collection: 'notes',
+        path: 'notes',
         id: 'n1',
         fields: { text: 'hello' },
       })
@@ -262,7 +262,7 @@ describe('structural equality (no unnecessary re-renders)', () => {
     })
 
     const { result } = renderHook(() =>
-      useRead(store, { collection: 'tasks' }),
+      useRead(store, { path: 'tasks' }),
     )
 
     const docsBefore = result.current as Doc[]
@@ -271,7 +271,7 @@ describe('structural equality (no unnecessary re-renders)', () => {
     // Update eq3 only
     await act(async () => {
       await store.adapter.write({
-        collection: 'tasks',
+        path: 'tasks',
         id: 'eq3',
         fields: { done: true },
         merge: true,
@@ -292,7 +292,7 @@ describe('structural equality (no unnecessary re-renders)', () => {
     const renderCount = { count: 0 }
     const { result } = renderHook(() => {
       renderCount.count++
-      return useRead(store, { collection: 'tasks', id: 'eq5' })
+      return useRead(store, { path: 'tasks', id: 'eq5' })
     })
 
     const initialCount = renderCount.count
@@ -300,7 +300,7 @@ describe('structural equality (no unnecessary re-renders)', () => {
 
     await act(async () => {
       await store.adapter.write({
-        collection: 'tasks',
+        path: 'tasks',
         id: 'eq5',
         fields: { done: true },
         merge: true,

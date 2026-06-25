@@ -9,18 +9,21 @@
 //   - Delegation to the adapter for remote subscribe / write
 
 import { emptyCache } from './cache.js'
-import type { Adapter, CacheState, Doc, Model, StoreInstance, Unsubscribe } from './types.js'
+import { createMutate } from './mutate.js'
+import type { Adapter, CacheState, Doc, Model, MutateFn, MutateSpec, StoreInstance, Unsubscribe } from './types.js'
 
 export interface StoreOptions {
   /** Per-collection model definitions. Keys are collection names. */
   models?: Record<string, Model>
+  /** Inline mutate declarations. Resolved into callable MutateFns on the store. */
+  mutates?: Record<string, MutateSpec>
 }
 
 export function createStore(adapter: Adapter, options?: StoreOptions): StoreInstance {
   let cache: CacheState = emptyCache()
   const models: Record<string, Model> = options?.models ?? {}
 
-  // collection name → Set of change callbacks
+  // path → Set of change callbacks
   const subs = new Map<string, Set<() => void>>()
 
   function getCache(): CacheState {
@@ -31,26 +34,26 @@ export function createStore(adapter: Adapter, options?: StoreOptions): StoreInst
     cache = next
   }
 
-  function notify(collection: string): void {
-    const callbacks = subs.get(collection)
+  function notify(path: string): void {
+    const callbacks = subs.get(path)
     if (!callbacks) return
     for (const cb of callbacks) {
       cb()
     }
   }
 
-  function subscribe(collection: string, cb: () => void): Unsubscribe {
-    if (!subs.has(collection)) {
-      subs.set(collection, new Set())
+  function subscribe(path: string, cb: () => void): Unsubscribe {
+    if (!subs.has(path)) {
+      subs.set(path, new Set())
     }
-    subs.get(collection)!.add(cb)
+    subs.get(path)!.add(cb)
     return () => {
-      subs.get(collection)?.delete(cb)
+      subs.get(path)?.delete(cb)
     }
   }
 
-  function enrich(collection: string, doc: Doc): Doc {
-    const model = models[collection]
+  function enrich(path: string, doc: Doc): Doc {
+    const model = models[path]
     if (!model?.compute) return doc
     return Object.defineProperties(
       Object.assign(Object.create(null), doc),
@@ -58,5 +61,18 @@ export function createStore(adapter: Adapter, options?: StoreOptions): StoreInst
     ) as Doc
   }
 
-  return { adapter, getCache, setCache, notify, subscribe, enrich }
+  // Build the store instance with a placeholder mutates map that gets populated below.
+  // The mutates map is filled in after construction so createMutate can reference
+  // the complete StoreInstance (which requires mutates to exist on it).
+  const resolvedMutates: Record<string, MutateFn> = {}
+  const store: StoreInstance = { adapter, getCache, setCache, notify, subscribe, enrich, mutates: resolvedMutates }
+
+  // Resolve inline mutate specs into callable MutateFns
+  if (options?.mutates) {
+    for (const [name, spec] of Object.entries(options.mutates)) {
+      resolvedMutates[name] = createMutate<Record<string, unknown>>(store, spec as Parameters<typeof createMutate>[1]) as MutateFn
+    }
+  }
+
+  return store
 }

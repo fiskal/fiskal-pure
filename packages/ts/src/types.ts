@@ -7,7 +7,7 @@ export type Doc = { id: string } & Record<string, unknown>
 
 /** A query against a collection or a single document. */
 export interface Query {
-  collection: string
+  path: string
   id?: string
   where?: Record<string, unknown>
   fields?: string[]
@@ -63,7 +63,7 @@ export function isAtomicOp(v: unknown): v is AtomicOp {
 export type FieldMap = Record<string, unknown | AtomicOp>
 
 export interface WriteDescriptor {
-  collection: string
+  path: string
   id: string
   /** When absent the entire document is set (merge = false). */
   fields?: FieldMap
@@ -139,6 +139,17 @@ export interface ErrorDoc extends Doc {
 }
 
 // ---------------------------------------------------------------------------
+// Mutate types
+// ---------------------------------------------------------------------------
+
+export type MutateFn = (payload?: Record<string, unknown>) => Promise<unknown>
+
+export interface MutateSpec {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  write: (payload: any) => WriteOp
+}
+
+// ---------------------------------------------------------------------------
 // Store instance
 // ---------------------------------------------------------------------------
 
@@ -146,13 +157,14 @@ export interface StoreInstance {
   adapter: Adapter
   getCache(): CacheState
   setCache(next: CacheState): void
-  /** Notify all subscribers for the given collection. */
-  notify(collection: string): void
-  /** Subscribe to cache changes for a given collection. */
-  subscribe(collection: string, cb: () => void): Unsubscribe
+  /** Notify all subscribers for the given path. */
+  notify(path: string): void
+  /** Subscribe to cache changes for a given path. */
+  subscribe(path: string, cb: () => void): Unsubscribe
   /**
    * Apply model compute descriptors to a raw doc. Returns the doc unchanged
-   * when no model is registered for the collection (identity function).
+   * when no model is registered for the path (identity function).
    */
-  enrich(collection: string, doc: Doc): Doc
+  enrich(path: string, doc: Doc): Doc
+  mutates: Record<string, MutateFn>
 }

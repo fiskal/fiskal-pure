@@ -53,7 +53,7 @@ describe('write-only mutate', () => {
 
     const complete = createMutate<{ id: string }>(store, {
       write: ({ id }) => ({
-        collection: 'tasks',
+        path: 'tasks',
         id,
         fields: { done: true },
         merge: true,
@@ -74,11 +74,11 @@ describe('write-only mutate', () => {
     seed(store, { tasks: [mkDoc({ id: 't2' })] })
 
     const complete = createMutate<{ id: string }>(store, {
-      write: ({ id }) => ({ collection: 'tasks', id, fields: { done: true }, merge: true }),
+      write: ({ id }) => ({ path: 'tasks', id, fields: { done: true }, merge: true }),
     })
 
     const result = await complete({ id: 't2' })
-    expect(result).toMatchObject({ collection: 'tasks', id: 't2' })
+    expect(result).toMatchObject({ path: 'tasks', id: 't2' })
   })
 })
 
@@ -98,9 +98,9 @@ describe('read-then-write mutate', () => {
 
     // Mutate that reads all undone tasks and marks them done
     const completeAll = createMutate<Record<string, never>>(store, {
-      read: () => [{ collection: 'tasks', where: { done: false } }],
+      read: () => [{ path: 'tasks', where: { done: false } }],
       write: ([undoneTasks]) => undoneTasks.map(doc => ({
-        collection: 'tasks',
+        path: 'tasks',
         id: doc.id,
         fields: { done: true },
         merge: true,
@@ -124,11 +124,11 @@ describe('read-then-write mutate', () => {
 
     const readCapture: Doc[][] = []
     const toggle = createMutate<Record<string, never>>(store, {
-      read: () => [{ collection: 'tasks', where: { done: false } }],
+      read: () => [{ path: 'tasks', where: { done: false } }],
       write: (reads) => {
         readCapture.push(reads[0])
         return reads[0].map(doc => ({
-          collection: 'tasks',
+          path: 'tasks',
           id: doc.id,
           fields: { done: true },
           merge: true,
@@ -157,8 +157,8 @@ describe('transaction mutate', () => {
 
     const archiveTask = createMutate<{ id: string }>(store, {
       write: [
-        ({ id }) => ({ collection: 'tasks', id, delete: true }),
-        ({ id }) => ({ collection: 'logs', id: `log-${id}`, fields: { action: 'archived', taskId: id }, merge: false }),
+        ({ id }) => ({ path: 'tasks', id, delete: true }),
+        ({ id }) => ({ path: 'logs', id: `log-${id}`, fields: { action: 'archived', taskId: id }, merge: false }),
       ],
     })
 
@@ -176,8 +176,8 @@ describe('transaction mutate', () => {
 
     const doubleIncrement = createMutate<Record<string, never>>(store, {
       write: [
-        () => ({ collection: 'counters', id: 'c1', fields: { value: increment(10) }, merge: true }),
-        () => ({ collection: 'counters', id: 'c1', fields: { value: increment(5) }, merge: true }),
+        () => ({ path: 'counters', id: 'c1', fields: { value: increment(10) }, merge: true }),
+        () => ({ path: 'counters', id: 'c1', fields: { value: increment(5) }, merge: true }),
       ],
     })
 
@@ -204,7 +204,7 @@ describe('optimistic update', () => {
     })
 
     const complete = createMutate<{ id: string }>(store, {
-      write: ({ id }) => ({ collection: 'tasks', id, fields: { done: true }, merge: true }),
+      write: ({ id }) => ({ path: 'tasks', id, fields: { done: true }, merge: true }),
     })
 
     await complete({ id: 'opt1' })
@@ -224,7 +224,7 @@ describe('rollback on remote failure', () => {
     vi.spyOn(store.adapter, 'write').mockRejectedValue(new Error('network error'))
 
     const complete = createMutate<{ id: string }>(store, {
-      write: ({ id }) => ({ collection: 'tasks', id, fields: { done: true }, merge: true }),
+      write: ({ id }) => ({ path: 'tasks', id, fields: { done: true }, merge: true }),
     })
 
     await expect(complete({ id: 'rb1' })).rejects.toThrow('network error')
@@ -244,8 +244,8 @@ describe('rollback on remote failure', () => {
 
     const archiveTask = createMutate<{ id: string }>(store, {
       write: [
-        ({ id }) => ({ collection: 'tasks', id, delete: true }),
-        ({ id }) => ({ collection: 'logs', id: `log-${id}`, fields: { action: 'archived' }, merge: false }),
+        ({ id }) => ({ path: 'tasks', id, delete: true }),
+        ({ id }) => ({ path: 'logs', id: `log-${id}`, fields: { action: 'archived' }, merge: false }),
       ],
     })
 
@@ -265,13 +265,13 @@ describe('shouldPass / shouldFail helpers', () => {
   // A simple mutate that fails on empty id
   function fakeMutate({ id }: { id: string }): Promise<WriteOp> {
     if (!id) return Promise.reject(new Error('id required'))
-    return Promise.resolve({ collection: 'tasks', id, fields: { done: true }, merge: true })
+    return Promise.resolve({ path: 'tasks', id, fields: { done: true }, merge: true })
   }
 
   it('shouldPass asserts the returned descriptor matches expected', async () => {
     const run = shouldPass(fakeMutate)({
       payload: { id: 'x1' },
-      expected: [{ collection: 'tasks', id: 'x1', fields: { done: true }, merge: true }],
+      expected: [{ path: 'tasks', id: 'x1', fields: { done: true }, merge: true }],
     })
     await expect(run()).resolves.toBeUndefined()
   })
@@ -279,7 +279,7 @@ describe('shouldPass / shouldFail helpers', () => {
   it('shouldPass throws when descriptor does not match', async () => {
     const run = shouldPass(fakeMutate)({
       payload: { id: 'x2' },
-      expected: [{ collection: 'tasks', id: 'WRONG', fields: { done: true }, merge: true }],
+      expected: [{ path: 'tasks', id: 'WRONG', fields: { done: true }, merge: true }],
     })
     await expect(run()).rejects.toThrow()
   })
@@ -298,7 +298,7 @@ describe('shouldPass / shouldFail helpers', () => {
     const store = makeStore()
     seed(store, { tasks: [mkDoc({ id: 'rw1', done: false })] })
     const descriptors = await resolveWrites(fakeMutate, { id: 'rw1' })
-    expect(descriptors[0].collection).toBe('tasks')
+    expect(descriptors[0].path).toBe('tasks')
     expect(descriptors[0].id).toBe('rw1')
   })
 })

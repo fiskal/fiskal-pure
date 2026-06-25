@@ -102,14 +102,14 @@ export function getDoc(
  * The returned cache shares all collection maps that were not touched.
  */
 export function applyWrite(cache: CacheState, desc: WriteDescriptor): CacheState {
-  const col = cache.get(desc.collection) ?? new Map<string, Doc>()
+  const col = cache.get(desc.path) ?? new Map<string, Doc>()
 
   if (desc.delete) {
     if (!col.has(desc.id)) return cache
     const nextCol = new Map(col)
     nextCol.delete(desc.id)
     const nextCache = new Map(cache)
-    nextCache.set(desc.collection, nextCol)
+    nextCache.set(desc.path, nextCol)
     return nextCache
   }
 
@@ -130,7 +130,7 @@ export function applyWrite(cache: CacheState, desc: WriteDescriptor): CacheState
   const nextCol = new Map(col)
   nextCol.set(desc.id, nextDoc)
   const nextCache = new Map(cache)
-  nextCache.set(desc.collection, nextCol)
+  nextCache.set(desc.path, nextCol)
   return nextCache
 }
 

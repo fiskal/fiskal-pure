@@ -115,7 +115,7 @@ export function createMutate<P extends Payload>(
       // Read from cache synchronously
       const queries = config.read(payload)
       const reads = queries.map(q => {
-        const col = getCollection(store.getCache(), q.collection)
+        const col = getCollection(store.getCache(), q.path)
         return filterDocs(col, q.where)
       })
       operation = config.write(reads, payload)
@@ -140,10 +140,10 @@ export function createMutate<P extends Payload>(
     }
     store.setCache(nextCache)
 
-    // Notify all affected collections
-    const collections = new Set(descs.map(d => d.collection))
-    for (const col of collections) {
-      store.notify(col)
+    // Notify all affected paths
+    const paths = new Set(descs.map(d => d.path))
+    for (const p of paths) {
+      store.notify(p)
     }
 
     // Async remote write
@@ -152,14 +152,14 @@ export function createMutate<P extends Payload>(
     } catch (err) {
       // Rollback optimistic update
       store.setCache(restoreCache(beforeSnapshot))
-      for (const col of collections) {
-        store.notify(col)
+      for (const p of paths) {
+        store.notify(p)
       }
 
-      // Write error doc to errors/ collection (always in-memory, never remote)
+      // Write error doc to errors/ path (always in-memory, never remote)
       const errorId = `${action}-${Date.now()}-${++_errorSeq}`
       const errorDesc: WriteDescriptor = {
-        collection: 'errors',
+        path: 'errors',
         id: errorId,
         fields: {
           action,
