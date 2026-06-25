@@ -394,8 +394,8 @@ const archiveSprint = createMutate(store, {
 ```ts
 const transfer = createMutate(store, {
   write: ({ from, to, amount }: { from: string; to: string; amount: number }) => [
-    { path: 'accounts', id: from, fields: { balance: increment(-amount) } },
-    { path: 'accounts', id: to,   fields: { balance: increment(amount)  } },
+    { path: 'accounts', id: from, fields: { balance: ['::increment', -amount] } },
+    { path: 'accounts', id: to,   fields: { balance: ['::increment', amount]  } },
   ],
 })
 ```
@@ -411,25 +411,21 @@ const TransferView = ({ fromAccount, toAccount, transfer }) => (
 // and an error doc appears in errors/ for the ErrorBanner to show
 ```
 
-**Atomic operations** — import the helpers; no raw `__op` objects:
-
-```ts
-import { increment, arrayUnion, arrayRemove, deleteField, serverTimestamp } from '@fiskal/antifragile'
-```
+**Atomic operations** — plain TUPLES, never function calls. A write stays pure, serialisable data: `['::op']` or `['::op', value]`. The `::` prefix marks the field as an atomic op.
 
 Increment a numeric field:
 
 ```ts
 write: ({ id }) => ({
-  path: 'posts', id, fields: { views: increment(1) },
+  path: 'posts', id, fields: { views: ['::increment', 1] },
 })
 ```
 
-Add to an array without duplicates:
+Add to an array without duplicates (the value is the list of items):
 
 ```ts
 write: ({ id, tag }) => ({
-  path: 'tasks', id, fields: { tags: arrayUnion(tag) },
+  path: 'tasks', id, fields: { tags: ['::arrayUnion', [tag]] },
 })
 ```
 
@@ -437,23 +433,23 @@ Remove from an array:
 
 ```ts
 write: ({ id, tag }) => ({
-  path: 'tasks', id, fields: { tags: arrayRemove(tag) },
+  path: 'tasks', id, fields: { tags: ['::arrayRemove', [tag]] },
 })
 ```
 
-Delete a specific field from the document:
+Delete a specific field from the document (no value):
 
 ```ts
 write: ({ id }) => ({
-  path: 'tasks', id, fields: { draftTitle: deleteField() },
+  path: 'tasks', id, fields: { draftTitle: ['::delete'] },
 })
 ```
 
-Server-assigned timestamp at commit time:
+Server-assigned timestamp at commit time (no value):
 
 ```ts
 write: ({ id }) => ({
-  path: 'tasks', id, fields: { updatedAt: serverTimestamp() },
+  path: 'tasks', id, fields: { updatedAt: ['::serverTimestamp'] },
 })
 ```
 
@@ -475,26 +471,37 @@ const TaskItem = wireView(
 )
 ```
 
+**You never write a subscription.** `wireView` owns the entire subscribe/unsubscribe lifecycle — it subscribes when the container mounts, re-subscribes only when the query key actually changes, and unsubscribes on unmount. The pure view has no library import and no cleanup to write. This is enforced, not conventional: there is no subscription API exposed to a component file (ADR-0017).
+
 **Under the covers — `wireView` is `useRead` + props assembly:**
 
 ```tsx
 function TaskItem({ taskId }) {
-  const task      = useRead({ path: 'tasks',   id: taskId })
+  const task      = useRead({ path: 'tasks',   id: taskId })   // owns subscribe + cleanup
   const sprint    = useRead({ path: 'sprints', id: 'sprints/current', fields: ['name', 'totalItems'] })
   const setStatus = store.mutates.setStatus
-  return <TaskItemView task={task} sprint={sprint} setStatus={setStatus} />
+  // wireView renders nothing until every query is loaded, then injects loaded data
+  if (task.status !== 'loaded' || sprint.status !== 'loaded') return null
+  return <TaskItemView task={task.data} sprint={sprint.data} setStatus={setStatus} />
 }
 ```
 
-`useRead` subscribes to the store and fires on every write to that path. Use it directly when a query is too dynamic for a static spec — always in a container file, never inside the pure view.
+`useRead` returns an explicit **`Loadable`** — never `null`/`undefined`:
 
-**Guard against loading and not-found at the view boundary:**
+```ts
+type Loadable<T> =
+  | { status: 'loading' }                 // no answer from the adapter yet
+  | { status: 'missing' }                 // single-item query, id absent
+  | { status: 'loaded'; data: T }         // a record, or a list (may be empty)
+```
+
+`wireView` consumes the `Loadable` for you and renders the view only once every query is loaded, injecting the plain loaded data — so the pure view reads `task.title` directly and never sees a loading sentinel. A view that wants a custom loading or not-found UI reads the `Loadable` itself via `useRead` in a container:
 
 ```tsx
-const TaskItemView = ({ task }: { task: Task | undefined | null }) => {
-  if (task === undefined) return <li>Loading…</li>
-  if (task === null)      return <li>Not found.</li>
-  return <li>{task.title}</li>
+const TaskCardView = ({ task }: { task: Loadable<Doc> }) => {
+  if (task.status === 'loading') return <li>Loading…</li>
+  if (task.status === 'missing') return <li>Not found.</li>
+  return <li>{task.data.title}</li>
 }
 ```
 
@@ -1027,7 +1034,7 @@ let TaskModel = TaskModel(
 |---|---|
 | `useQuery({ queryKey, queryFn })` inside component | `wireView` subscription outside component |
 | `queryClient.invalidateQueries(key)` after every mutation | Automatic — subscriptions stay open |
-| `isLoading` / `isError` / `data` three states | `undefined` (loading) · `null` (not found) · `Doc` |
+| `isLoading` / `isError` / `data` three states | one `Loadable`: `{ status: 'loading' \| 'missing' \| 'loaded', data }` |
 | `onMutate` + `onError` rollback (hand-rolled) | Automatic rollback on every write failure |
 
 ### From Zustand
@@ -1145,8 +1152,14 @@ view needs data
    └─ wireView/useRead resolves query ─► read from cache (SYNC) ─► enrich (apply
         compute closures as plain props) ─► hand to view as props
 
-        three-state contract:
-          loading   — query not yet in cache        (TS undefined · Swift .loading)
-          not-found — single-doc query, id absent    (TS null      · Swift .missing)
-          loaded    — Doc, or Doc[] (possibly empty)  (TS value     · Swift .loaded)
+        Loadable contract (identical on both platforms — no null/undefined):
+          .loading   — query not yet answered by the adapter
+          .missing   — single-item query, id absent (never for a collection)
+          .loaded    — a record, or a list (which may be empty)
+
+        TS:    { status: 'loading' | 'missing' | 'loaded', data }
+        Swift: enum Loadable<T> { case loading; case missing; case loaded(T) }
+
+        wireView renders the view only once every query is .loaded and injects
+        the plain loaded data, so a pure view never branches on load state.
 ```
