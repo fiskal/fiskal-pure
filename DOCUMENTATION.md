@@ -173,8 +173,8 @@ import { MemoryAdapter } from '@fiskal/antifragile/adapters/memory'
 export const store = createStore(
   MemoryAdapter({
     tasks: [
-      { id: 'task-1', title: 'Deploy', status: 'todo' },
-      { id: 'task-2', title: 'Review', status: 'todo' },
+      { id: 'tasks/task-1', title: 'Deploy',  status: 'active' },
+      { id: 'tasks/task-2', title: 'Review',  status: 'active' },
     ],
   }),
   {
@@ -323,6 +323,33 @@ const TaskModel = {
 - Getters derive from `this` (the document's own fields). Applied as live `Object.defineProperty` descriptors after enrichment — they run at read time, not write time.
 - Computers (methods) take a sibling document as argument. Call them as methods: `task.completionPercent(sprint)`. Never destructure them — `this` is lost.
 - Compute names must not collide with schema field names.
+
+**Why compute getters instead of selector functions:**
+
+Redux selectors are functions: `createSelector(state => state.tasks[id].title)`. They carry two costs — they must navigate the full state tree shape, and they are logic that must be imported and mocked in tests.
+
+Antifragile compute getters live on the document itself. The view reads `task.statusLabel` — a plain property, no import, no function call, no tree path. The getter runs at read time inside the enriched doc and the component never knows it exists.
+
+**The `this` binding rule — never destructure compute getters:**
+
+```ts
+// WRONG — 'this' is undefined in strict mode; getter throws
+const { statusLabel } = task
+
+// CORRECT — read as a property on the doc
+const label = task.statusLabel
+```
+
+The same applies to computer methods:
+
+```ts
+// WRONG
+const { completionPercent } = task
+completionPercent(sprint)   // 'this' is undefined
+
+// CORRECT
+task.completionPercent(sprint)
+```
 
 ---
 
@@ -484,6 +511,17 @@ const transfer = createMutate(store, {
   ],
 })
 ```
+
+**ACID compliance:**
+
+Array writes are committed to the backing adapter as a single atomic transaction.
+
+- **Atomic** — the array is one indivisible unit. No partial application. Both writes land or neither does.
+- **Consistent** — schema validation (see `Model.schema`) ensures every write satisfies the model contract before the adapter receives it. A write that fails validation is rejected before it touches the cache.
+- **Isolated** — each write sees the current cache snapshot. Concurrent writes are serialised through the adapter queue so they never interleave.
+- **Durable** — the backing adapter handles persistence. `FirestoreAdapter` and `CloudKitAdapter` are ACID-durable. `MemoryAdapter` is in-process only — pair with `store.persist()` for durability across restarts.
+
+The in-memory cache applies the write optimistically on submission. If the adapter rejects the transaction, the cache rolls back to the pre-write snapshot and all affected subscribers are notified.
 
 **`merge` — default is patch:**
 - Omit `merge` — patch (default). Only the listed fields change. Everything else on the doc survives.
@@ -1883,3 +1921,153 @@ If you use `LocalStorageAdapter`, verify the adapter version includes a `window.
 ---
 
 *Antifragile is in active development. The API is stable at the described surface; internals are subject to change.*
+
+---
+
+## Swift — Minimum Viable Example
+
+The full picture in one place. No imports from the library in the view. Wire lives in the same file as the view. Test with a plain struct init.
+
+### `store.swift` — seed data, schema, mutate
+
+```swift
+import Antifragile
+
+let store = Store.createStore {
+  BackingStoreConfig(
+    name: "default",
+    adapter: MemoryAdapter(initial: [
+      "tasks": [
+        "tasks/task-1": ["id": "tasks/task-1", "title": "Deploy",  "status": "active"],
+        "tasks/task-2": ["id": "tasks/task-2", "title": "Review",  "status": "active"],
+      ],
+    ]),
+    models: [
+      "tasks": TaskModel(
+        schema: [
+          "type": "object",
+          "properties": [
+            "id":     ["type": "string"],
+            "title":  ["type": "string"],
+            "status": ["type": "string", "enum": ["active", "archived"]],
+          ],
+          "required": ["id", "title", "status"],
+        ]
+      ),
+    ],
+    mutates: [setStatus]
+  )
+}
+
+let setStatus = createMutate(action: "SetStatus") { (payload: [String: Any]) -> [Write] in
+  guard
+    let id     = payload["id"]     as? String,
+    let status = payload["status"] as? String
+  else { return [] }
+  return [Write(id: id, fields: ["status": status])]
+  // merge is the default — only the status field changes; everything else survives
+}
+```
+
+### `TaskItem.swift` — pure view + wire in the same file
+
+```swift
+import SwiftUI
+import Antifragile  // imported once — for wireView only
+
+// Pure view — no store, no @EnvironmentObject
+struct TaskItem: View {
+  let task: [String: Any]
+  let setStatus: ([String: Any]) async throws -> Void
+
+  var body: some View {
+    HStack {
+      Text(task["title"] as? String ?? "")
+      Spacer()
+      Button("Archive") {
+        Task { try? await setStatus(["id": task["id"] ?? "", "status": "archived"]) }
+      }
+    }
+  }
+}
+
+// Wire lives right below the view — nothing to export
+let WiredTaskItem = wireView(
+  name: "TaskItem",
+  queries: { props in ["task": ["id": props["taskId"] as? String ?? ""]] },
+  actions: ["setStatus"],
+  view: TaskItem.init
+)
+
+// Test — plain struct init, no environment, no store
+// let view = TaskItem(task: ["id": "tasks/task-1", "title": "Deploy", "status": "active"],
+//                    setStatus: { _ in })
+```
+
+### `TaskList.swift` — collection query, component injection
+
+```swift
+import SwiftUI
+import Antifragile
+
+// Pure view — receives a list of ids and a component to render each one
+struct TaskList: View {
+  let taskIds: [[String: Any]]
+  let TaskItem: (String) -> AnyView     // injected by wireView at runtime
+
+  var body: some View {
+    List(taskIds.compactMap { $0["id"] as? String }, id: \.self) { id in
+      TaskItem(id)
+    }
+  }
+}
+
+// WiredTaskItem is automatically injected into TaskList's TaskItem prop
+// because it was registered above with the same name
+let WiredTaskList = wireView(
+  name: "TaskList",
+  queries: ["taskIds": ["path": "tasks", "where": ["status": "active"]]],
+  actions: [],
+  view: TaskList.init
+)
+```
+
+### `MyApp.swift` — entry point
+
+```swift
+import SwiftUI
+import Antifragile
+
+@main
+struct MyApp: App {
+  var body: some Scene {
+    WindowGroup {
+      WiredTaskList()
+        .environment(store)
+    }
+  }
+}
+```
+
+### What `wireView` builds for you (under the covers)
+
+`wireView` is `useRead` + props injection, in Swift:
+
+```swift
+struct WiredTaskItemExpanded: View {
+  let taskId: String
+  @Environment(store) private var store
+
+  var body: some View {
+    let task      = store.read(query: ["id": taskId])       // useRead equivalent
+    let setStatus = store.mutates["setStatus"]
+    return TaskItem(task: task ?? [:], setStatus: setStatus ?? { _ in })
+  }
+}
+```
+
+**Isolated** — `TaskItem.swift` has no `@EnvironmentObject`, no `@StateObject`, nothing from the store.  
+**Predictable** — the query spec is a plain dictionary. You can read it and know exactly what arrives.  
+**Hermetic** — updating `tasks/task-2` never triggers a re-render of a view subscribed to `tasks/task-1`.  
+**Debuggable** — `store.history.log()` gives the exact write sequence that produced the current state.  
+**Fixable** — the log is the bug report. Replay, find the step, fix the write descriptor.
