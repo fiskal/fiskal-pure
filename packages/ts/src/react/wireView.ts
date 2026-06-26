@@ -34,6 +34,14 @@ type QueryMap = Record<string, QuerySpec>
 type QueryFn<P> = (props: P) => QueryMap
 type ReadValue = Loadable<Doc | Doc[]>
 
+// Props of the built-in Outlet: the registered view NAME to render, plus the
+// dynamic query params it merges into its own read. Type a wired view's
+// injected Outlet prop as `ComponentType<OutletProps>`.
+export type OutletProps = {
+  view: string
+  query?: Record<string, unknown>
+}
+
 // Module-scope shared noop so the missing-action prop is referentially stable
 // across renders (preserves React.memo / useCallback dep stability).
 const NOOP: MutateFn = async () => {}
@@ -53,6 +61,19 @@ export function createWireView(
 ) => ComponentType<Partial<P>> {
   const registry = new Map<string, ComponentType<Record<string, unknown>>>()
   const allMutates = { ...store.mutates, ...(mutates ?? {}) }
+
+  // Built-in Outlet — renders a registered view chosen by NAME at runtime,
+  // forwarding the dynamic query params that view needs. It is registered like
+  // any other component, so it is dependency-injected into any wired view that
+  // declares an `Outlet` prop — exactly like TaskItem is injected into TaskList.
+  // Callers never look a component up in a map; they hand the Outlet a name.
+  const Outlet: ComponentType<OutletProps> = ({ view, query }) => {
+    const Resolved = registry.get(view)
+    if (!Resolved) return null
+    return createElement(Resolved, query !== undefined ? { query } : {})
+  }
+  Outlet.displayName = 'Outlet'
+  registry.set('Outlet', Outlet as ComponentType<Record<string, unknown>>)
 
   function specToQuery(spec: QuerySpec): Query {
     const extras = {

@@ -581,59 +581,65 @@ write: ({ theme }: { theme: string }) => ({
 
 ## 11. Advanced UI
 
-### Portals and modals without Context
+### Modal — present a view into one slot, no Context
 
-A document id is a full path. Store the active id in `ui/` — any component can query it without Context or prop drilling.
+There is one modal per app. You don't open it with an entity id — you tell it **which registered view to render** and the **dynamic query params** that view needs. The modal record is pure data: `{ view, query }`.
 
 ```ts
+// ui/modal  →  { view: 'TaskList', query: { where: { status: 'active' } } }
+
 const openModal  = createMutate(store, {
-  write: ({ id }: { id: string }) => ({
-    path:   'ui',
-    id:     'ui/modal/active',
-    fields: { id },   // e.g. 'tasks/task-1' or 'sprints/sprint-A'
+  write: ({ view, query }: { view: string; query?: Record<string, unknown> }) => ({
+    path: 'ui', id: 'ui/modal', fields: { view, query },
   }),
 })
-
 const closeModal = createMutate(store, {
-  write: () => ({
-    path:   'ui',
-    id:     'ui/modal/active',
-    delete: true,
-  }),
+  write: () => ({ path: 'ui', id: 'ui/modal', delete: true }),
 })
 ```
+
+Open it from anywhere — the caller picks a view by name, never an entity type:
+
+```ts
+openModal({ view: 'TaskList',   query: { where: { status: 'active' } } })  // from the task list
+openModal({ view: 'TaskDetail', query: { id: 'tasks/task-1' } })          // from a row
+```
+
+The modal shell receives the built-in **`Outlet`** by dependency injection — exactly like `TaskItem` is injected into `TaskList`. You never look a component up in a map; the library hands it to you. You give the `Outlet` the name + query from the modal record:
 
 ```tsx
-// Any component deep in the tree — openModal injected, no Context required
-const TaskRow = wireView(
-  'TaskRow',
-  ({ taskId }) => ({
-    task: { path: 'tasks', id: taskId },
-  }),
-  ['openModal'],
-  TaskRowView,
+const ModalView = ({ modal, Outlet, closeModal }: {
+  modal: { view: string; query?: Record<string, unknown> }
+  Outlet: React.ComponentType<OutletProps>   // injected by the library
+  closeModal: () => void
+}) => (
+  <Scrim onClick={closeModal}>
+    <Outlet view={modal.view} query={modal.query} />
+  </Scrim>
 )
 
-// Shell at the root — reads the stored id
-const ModalShell = wireView(
-  'ModalShell',
-  { active: { path: 'ui', id: 'ui/modal/active' } },
+// One modal at the root. wireView render-gates: when ui/modal is absent the
+// whole shell renders nothing, so there is no scrim and no double-stacking.
+const Modal = wireView(
+  'Modal',
+  { modal: { path: 'ui', id: 'ui/modal' } },
   ['closeModal'],
-  ModalShellView,
-)
-
-// Detail uses the stored id as its own query
-const ModalDetail = wireView(
-  'ModalDetail',
-  ({ activeId }) => ({
-    item: { path: activeId.split('/')[0], id: activeId },
-  }),
-  ['closeModal'],
-  ModalDetailView,
+  ModalView,
 )
 ```
 
-No `ReactDOM.createPortal`. No `React.createContext`. No type registry.
+A presentable view declares its **static** read and merges in the **dynamic** query the modal handed it — the query is the only context it needs:
+
+```tsx
+const TaskList = wireView(
+  'TaskList',
+  ({ query }) => ({ tasks: { path: 'tasks', ...query } }),   // static path + dynamic params
+  [],
+  TaskListView,
+)
+```
+
+The whole flow is serializable data — `openModal`/`closeModal` are writes, so the modal lives in the write log and replays like any other state. No `ReactDOM.createPortal`, no `React.createContext`, no type switch, no registry lookup in your code.
 
 ### No `useContext`, `useCallback`, or `useMemo`
 
